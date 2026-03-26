@@ -2,6 +2,7 @@
 
 > A disciplined, rules-based 15-minute ORB strategy for NAS100 (US100/MNQ).
 > Trades the NY open session only. No indicators. No guessing. Just levels.
+> **Nigerian time: 2:30 PM – 4:30 PM WAT**
 
 ---
 
@@ -33,14 +34,14 @@ The core idea is simple:
 
 The strategy also uses **ICT liquidity sweep filters** — it only takes longs if the previous day's low was swept first, and shorts if the previous day's high was swept. This removes low-quality setups and dramatically improves win rate.
 
-**You only need to be at your screen for 2 hours: 9:30–11:30 AM New York time.**
+**You only need to be at your screen for 2 hours: 2:30 PM – 4:30 PM Nigerian time (WAT).**
 
 ---
 
 ## How It Works
 
 ### Step 1 — The Opening Range
-At exactly **9:30 AM New York time**, the first 15-minute candle forms.
+At exactly **2:30 PM Nigerian time (WAT)**, the first 15-minute candle forms.
 
 ```
 First candle HIGH  →  Resistance / Long trigger level
@@ -68,7 +69,7 @@ When price **closes a 15-minute candle** above the first bar high (or below the 
 - **Stop Loss** = First bar low (long) / First bar high (short)
 - **TP 2R** = Entry + (risk × 2)
 - **TP 3R** = Entry + (risk × 3)
-- All positions are force-closed before 5:00 PM NY time (no overnight holds)
+- All positions are force-closed before 10:00 PM Nigerian time / 5:00 PM NY time (no overnight holds)
 
 ---
 
@@ -209,17 +210,17 @@ Position = $100 ÷ 67 = ~1.5 units (round down to 1)
 
 ## Session Times by Timezone
 
-The strategy trades **9:30 AM – 11:30 AM New York (ET) time**.
+The strategy trades **2:30 PM – 4:30 PM Nigerian time (WAT)**. That is the NY open session.
 
 | Location | Session Time |
 |---|---|
-| New York (ET) | 9:30 AM – 11:30 AM |
+| **Nigeria / Ghana (WAT)** | **2:30 PM – 4:30 PM** ← you are here |
 | London (GMT) | 2:30 PM – 4:30 PM |
-| Lagos / Accra (WAT/GMT) | 2:30 PM – 4:30 PM |
-| Dubai (GST) | 5:30 PM – 7:30 PM |
-| Nairobi (EAT) | 4:30 PM – 6:30 PM |
 | Johannesburg (SAST) | 3:30 PM – 5:30 PM |
+| Nairobi (EAT) | 4:30 PM – 6:30 PM |
+| Dubai (GST) | 5:30 PM – 7:30 PM |
 | Mumbai (IST) | 7:00 PM – 9:00 PM |
+| New York (ET) | 9:30 AM – 11:30 AM |
 
 > You only need to be available for this 2-hour window. After placing the trade, SL and TP do the rest.
 
