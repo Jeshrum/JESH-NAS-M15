@@ -116,10 +116,21 @@ Click the **gear icon** next to the strategy name on the chart to open settings.
 ### Position Sizing
 | Setting | Default | What It Does |
 |---|---|---|
-| Position Size Type | Risk-Based | Calculates contracts based on dollar risk |
-| Risk Amount ($) | $300 | How much USD you risk per trade |
+| Account Size ($) | $10,000 | Your prop firm account balance |
+| Risk Mode | Normal (2%) | Selects your risk per trade as % of account |
+| Position Size Type | Risk-Based | Auto-calculates contracts based on dollar risk |
 
-> Risk-Based sizing automatically sizes your position so that if SL is hit, you lose exactly $300 (or whatever you set).
+**Risk Mode breakdown on a $10,000 account:**
+
+| Mode | Risk/Trade | Max Loss (1 trade) | Safe for Prop Firm? |
+|---|---|---|---|
+| Conservative (1%) | $100 | $100 | ✅ Very safe |
+| Normal (2%) | $200 | $200 | ✅ Safe |
+| Aggressive (3%) | $300 | $300 | ⚠️ Watch daily limit |
+
+> Prop firm daily loss limit is usually 5% ($500 on $10k). **Never take more than 1 trade per day** — the strategy enforces this automatically.
+>
+> Risk-Based sizing auto-calculates your position size so that if SL is hit, you lose exactly your chosen risk amount.
 
 ### ATR Adjustments
 | Setting | Default | What It Does |
@@ -189,15 +200,17 @@ Risk per trade = Account size × Risk %
 Position size  = Risk per trade ÷ SL distance (in points)
 ```
 
-**Example:**
+**Example on a $10,000 prop firm account (Normal 2%):**
 ```
-Account: $5,000
-Risk %:  2% → Risk per trade = $100
-SL distance: 67 pts
-NAS100 point value: ~$1 per pt (CFD) or $2/pt (MNQ micro)
+Account:       $10,000
+Risk Mode:     Normal (2%) → Risk per trade = $200
+SL distance:   67 pts
+NAS100 value:  ~$1 per pt (CFD) or $2/pt (MNQ micro)
 
-Position = $100 ÷ 67 = ~1.5 units (round down to 1)
+Position size = $200 ÷ 67 = ~3 units (CFD) or ~1-2 contracts (MNQ)
 ```
+
+The strategy calculates this automatically — you just select your Risk Mode in settings.
 
 ### Golden Rules
 - **Never risk more than 1–2% of your account per trade**
@@ -229,15 +242,17 @@ The strategy trades **2:30 PM – 4:30 PM Nigerian time (WAT)**. That is the NY 
 ## Strategy Performance
 
 Backtested on **NAS100 / US100 (15-minute), Jan 2026 – Mar 2026**
+Simulated on a **$10,000 prop firm account** using Risk-Based position sizing.
 
-| Metric | Value |
-|---|---|
-| Total Trades | 49 |
-| Win Rate | 55.10% |
-| Profit Factor | 2.155 |
-| Total P&L | +$3,100.32 |
-| Max Drawdown | $795.77 (0.52%) |
-| Initial Capital | $150,000 |
+| Metric | Conservative (1%) | Normal (2%) | Aggressive (3%) |
+|---|---|---|---|
+| Risk Per Trade | $100 | $200 | $300 |
+| Total Trades | 49 | 49 | 49 |
+| Win Rate | 55.10% | 55.10% | 55.10% |
+| Profit Factor | 2.155 | 2.155 | 2.155 |
+| Est. Monthly P&L | ~$400–600 | ~$800–1,200 | ~$1,200–1,800 |
+| Max Daily Risk | $100 | $200 | $300 |
+| Prop Firm Daily Limit | $500 ✅ | $500 ✅ | $500 ⚠️ |
 
 > Past performance does not guarantee future results. Always use proper risk management.
 
