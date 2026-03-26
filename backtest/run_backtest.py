@@ -9,7 +9,7 @@
 # To change settings (capital, risk mode, dates), edit config.py only.
 # =============================================================================
 
-from data_feed   import download_data
+from data_feed   import get_data
 from strategy    import run_strategy
 from analytics   import (build_trade_log, compute_summary,
                          compute_monthly_returns, print_summary,
@@ -23,7 +23,7 @@ def main():
     print("="*55)
 
     # ── 1. Load Data ─────────────────────────────────────────────────────────
-    df = download_data()
+    df = get_data()
 
     # ── 2. Run Strategy ──────────────────────────────────────────────────────
     print("[ENGINE] Running strategy simulation...")
