@@ -1,0 +1,1089 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Roboquant.ai
+
+//@version=6
+strategy("JDUB Strategy Roboquant.ai [OPTIMIZED]",
+     overlay=true, 
+     initial_capital=150000, 
+     default_qty_type=strategy.fixed, 
+     default_qty_value=1, 
+     margin_long=0.01, 
+     margin_short=0.01, 
+     commission_type=strategy.commission.cash_per_contract, 
+     commission_value=0.5, 
+     pyramiding=1,
+     max_lines_count=200,
+     max_boxes_count=100)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Trading Session Input
+session_input = input.session("0930-1130", "Trading Session NY", tooltip="Define trading hours when new trades can be opened in New York timezone.", group="Trading Session")
+
+// Force Close Toggle Input
+enable_force_close = input.bool(true, "Enable Force Close EOD NY", tooltip="When enabled, all positions will be closed in the last 2 bars before session end (17:00 NY)", group="Trading Session")
+
+// Cancel Orders Toggle Input
+enable_cancel_orders = input.bool(true, "Cancel All Orders at Session End", tooltip="When enabled, all pending orders will be cancelled at the end of trading session", group="Trading Session")
+
+// Limit Order Toggle Input
+use_limit_orders = input.bool(true, "Use Limit Orders for Entry", tooltip="When enabled, uses limit orders at first bar levels. When disabled, uses market orders", group="Trading Session")
+
+// One TP Per Direction Toggle Input
+one_tp_per_direction = input.bool(true, "One TP Per Direction Per Day", tooltip="When enabled, prevents re-entry in the same direction on the same day after a TP is hit", group="Trading Session")
+
+// Previous Day Sweep Filter Toggle Input
+require_pdl_sweep_for_longs = input.bool(true, "Require PDL Sweep for Long Entries", tooltip="When enabled, long entries are only allowed if previous day low was broken (swept) on current day", group="Trading Session")
+require_pdh_sweep_for_shorts = input.bool(true, "Require PDH Sweep for Short Entries", tooltip="When enabled, short entries are only allowed if previous day high was broken (swept) on current day", group="Trading Session")
+
+// Second Chance Trade Toggle Input
+enable_second_chance = input.bool(false, "Trade Opposite Direction if Valid Breakout", tooltip="When enabled, allows up to 2 trades per day - one in each direction if both breakouts are valid", group="Trading Session")
+enable_position_flip = input.bool(false, "Close Current Trade on Opposite Signal", tooltip="When enabled, closes current position and enters opposite direction when new signal occurs", group="Trading Session")
+
+// Position Sizing Type Selection
+pos_size_type = input.string("Risk-Based", "Position Size Type", options=["Fixed Contracts", "Risk-Based"], tooltip="Choose between fixed contracts or risk-based position sizing", group="Position Sizing")
+
+// Fixed contracts
+fixed_contracts = input.int(1, "Fixed Contracts", minval=1, step=1, group="Position Sizing")
+
+// Risk-based sizing
+risk_amount = input.int(300, "Risk Amount ($)", minval=10, step=10, 
+     tooltip="Dollar amount to risk per trade (used with stop loss for position sizing)", group="Position Sizing")
+
+// Visualization inputs
+show_levels = input.bool(true, "Show PDH/PDL and First Bar Levels", group="Visualization")
+show_debug_labels = input.bool(false, "Show Debug Labels", group="Visualization")
+
+// ATR-based adjustments
+atr_length = input.int(14, "ATR Length", minval=1, maxval=50, group="ATR Adjustments")
+tp_atr_reduction = input.float(0.5, "Take Profit ATR Reduction", minval=0.0, maxval=5.0, step=0.1, tooltip="Reduce take profit target by ATR * this multiplier (0 = no reduction)", group="ATR Adjustments")
+limit_atr_improvement = input.float(0.5, "Limit Order ATR Improvement", minval=0.0, maxval=5.0, step=0.1, tooltip="Move limit orders away from breakout level by ATR * this multiplier to increase fill chance (0 = exact breakout level)", group="ATR Adjustments")
+pdh_color = input.color(color.red, "Previous Day High Color", group="Visualization")
+pdl_color = input.color(color.green, "Previous Day Low Color", group="Visualization")
+first_bar_high_color = input.color(color.orange, "First Bar High Color", group="Visualization")
+first_bar_low_color = input.color(color.blue, "First Bar Low Color", group="Visualization")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        PREVIOUS DAY HIGH/LOW CALCULATION & LINE DRAWING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// NY session definition
+ny_session = "0930-1600"
+ny_timezone = "America/New_York"
+
+// Check if current bar is in NY session
+in_ny_session = not na(time(timeframe.period, ny_session, ny_timezone))
+
+// Detect first bar of NY session
+first_bar_of_session = in_ny_session and not in_ny_session[1]
+
+// Number of previous days to track for line drawing
+dayCount = input.int(30, "Number of Previous Days to Display", minval=1, maxval=50, tooltip="Number of previous day high/low lines to show on chart", group="Visualization")
+
+// Detect new day (Sunday belongs to Monday for trading purposes)
+newDay = (dayofweek != dayofweek[1] or dayofmonth != dayofmonth[1]) and dayofweek != dayofweek.sunday
+
+// Calculate ATR for adjustments
+current_atr = ta.atr(atr_length)
+
+// Current day tracking variables
+var int prevDayStartBar = na
+var int prevDayEndBar = na
+var int currentDayStartBar = 0
+
+// Arrays to store previous days' data
+var float[] prevHighs = array.new_float(dayCount, na)
+var float[] prevLows = array.new_float(dayCount, na)
+var int[] highBars = array.new_int(dayCount, na)
+var int[] lowBars = array.new_int(dayCount, na)
+var line[] highLines = array.new_line(dayCount, na)
+var line[] lowLines = array.new_line(dayCount, na)
+var bool[] highBroken = array.new_bool(dayCount, false)
+var bool[] lowBroken = array.new_bool(dayCount, false)
+var int[] highBreakBars = array.new_int(dayCount, na)
+var int[] lowBreakBars = array.new_int(dayCount, na)
+
+// Variables for current strategy logic (most recent day's levels)
+var float prev_day_high = na
+var float prev_day_low = na
+
+// Variables for ATR-adjusted prices (calculated fresh each bar)
+float adjusted_limit_price = na
+float adjusted_tp_price = na
+
+// Variables to track previous day sweeps (MUST be declared before usage)
+var bool pdh_swept_today = false
+var bool pdl_swept_today = false
+var bool pdh_swept_confirmed = false  // Persistent state for confirmed sweeps
+var bool pdl_swept_confirmed = false  // Persistent state for confirmed sweeps
+var float tracked_pdh = na  // The PDH level we're tracking for sweeps
+var float tracked_pdl = na  // The PDL level we're tracking for sweeps
+
+// Variables to track pending limit orders that need to be retried
+var bool pending_long_limit = false
+var bool pending_short_limit = false
+var float pending_long_limit_price = na
+var float pending_short_limit_price = na
+var string pending_long_entry_id = na
+var string pending_short_entry_id = na
+var float pending_long_tp_price = na
+var float pending_short_tp_price = na
+var float pending_long_sl_price = na
+var float pending_short_sl_price = na
+var float pending_long_qty = na
+var float pending_short_qty = na
+
+// Update prev_day_high and prev_day_low from arrays for strategy logic
+if not na(array.get(prevHighs, 0))
+    prev_day_high := array.get(prevHighs, 0)
+    // ALWAYS keep tracked level in sync with array data
+    if tracked_pdh != prev_day_high
+        old_tracked_pdh = tracked_pdh
+        tracked_pdh := prev_day_high
+        // Reset sweep tracking since we're tracking a new level
+        pdh_swept_today := false
+        pdh_swept_confirmed := false
+        if show_debug_labels
+            label.new(bar_index, high + (high - low) * 0.2, text="📊 TRACKED PDH SYNC\nOld: " + str.tostring(old_tracked_pdh) + "\nNew: " + str.tostring(tracked_pdh) + "\nArray[0]: " + str.tostring(array.get(prevHighs, 0)), color=color.fuchsia, textcolor=color.white, style=label.style_label_down, size=size.small)
+        
+if not na(array.get(prevLows, 0))
+    prev_day_low := array.get(prevLows, 0)
+    // ALWAYS keep tracked level in sync with array data  
+    if tracked_pdl != prev_day_low
+        old_tracked_pdl = tracked_pdl
+        tracked_pdl := prev_day_low
+        // Reset sweep tracking since we're tracking a new level
+        pdl_swept_today := false
+        pdl_swept_confirmed := false
+        if show_debug_labels
+            label.new(bar_index, low - (high - low) * 0.2, text="📊 TRACKED PDL SYNC\nOld: " + str.tostring(old_tracked_pdl) + "\nNew: " + str.tostring(tracked_pdl) + "\nArray[0]: " + str.tostring(array.get(prevLows, 0)), color=color.fuchsia, textcolor=color.white, style=label.style_label_up, size=size.small)
+
+// Sweep tracking variables are now declared above (before usage)
+
+// Reset sweep tracking on new day (levels will be captured after array updates)
+if newDay
+    pdh_swept_today := false
+    pdl_swept_today := false
+    pdh_swept_confirmed := false
+    pdl_swept_confirmed := false
+    
+    if show_debug_labels
+        label.new(bar_index, high, text="NEW DAY RESET\nResetting all sweep flags", 
+                  color=color.white, textcolor=color.black, style=label.style_label_down, size=size.tiny)
+
+// Initialize tracked levels on first bar if not set
+if na(tracked_pdh) and not na(prev_day_high)
+    tracked_pdh := prev_day_high
+if na(tracked_pdl) and not na(prev_day_low)
+    tracked_pdl := prev_day_low
+
+// Detect previous day high/low sweeps using the TRACKED levels (not the dynamic ones)
+if not na(tracked_pdh) and not pdh_swept_today
+    if high > tracked_pdh
+        pdh_swept_today := true
+        if show_debug_labels
+            // Show detailed comparison for debugging
+            visual_pdh = not na(array.get(prevHighs, 0)) ? array.get(prevHighs, 0) : na
+            debug_text = "🚨 PDH SWEEP DETECTED 🚨\n"
+            debug_text := debug_text + "Bar High: " + str.tostring(high) + "\n"
+            debug_text := debug_text + "Tracked PDH: " + str.tostring(tracked_pdh) + "\n"
+            debug_text := debug_text + "Visual PDH: " + str.tostring(visual_pdh) + "\n"
+            debug_text := debug_text + "Match: " + str.tostring(tracked_pdh == visual_pdh)
+            label.new(bar_index, high + (high - low) * 0.1, text=debug_text, color=color.orange, textcolor=color.white, style=label.style_label_down, size=size.small)
+
+if not na(tracked_pdl) and not pdl_swept_today
+    if low < tracked_pdl
+        pdl_swept_today := true
+        if show_debug_labels
+            // Show detailed comparison for debugging
+            visual_pdl = not na(array.get(prevLows, 0)) ? array.get(prevLows, 0) : na
+            debug_text = "🚨 PDL SWEEP DETECTED 🚨\n"
+            debug_text := debug_text + "Bar Low: " + str.tostring(low) + "\n"
+            debug_text := debug_text + "Tracked PDL: " + str.tostring(tracked_pdl) + "\n"
+            debug_text := debug_text + "Visual PDL: " + str.tostring(visual_pdl) + "\n"
+            debug_text := debug_text + "Match: " + str.tostring(tracked_pdl == visual_pdl) + "\n"
+            debug_text := debug_text + "CONDITION: " + str.tostring(low) + " < " + str.tostring(tracked_pdl) + " = " + str.tostring(low < tracked_pdl)
+            label.new(bar_index, low - (high - low) * 0.1, text=debug_text, color=color.orange, textcolor=color.white, style=label.style_label_up, size=size.small)
+    else if show_debug_labels and in_ny_session
+        // Show when PDL is NOT swept for comparison
+        debug_text = "✅ PDL NOT SWEPT\n"
+        debug_text := debug_text + "Bar Low: " + str.tostring(low) + "\n"
+        debug_text := debug_text + "Tracked PDL: " + str.tostring(tracked_pdl) + "\n"
+        debug_text := debug_text + "CONDITION: " + str.tostring(low) + " < " + str.tostring(tracked_pdl) + " = " + str.tostring(low < tracked_pdl)
+        label.new(bar_index, low - (high - low) * 0.05, text=debug_text, color=color.lime, textcolor=color.black, style=label.style_label_up, size=size.tiny)
+
+// Confirm sweeps on the bar AFTER they occurred (prevents same-bar entries)
+// Once confirmed, stays confirmed for the entire day
+if pdh_swept_today[1] and not pdh_swept_confirmed
+    pdh_swept_confirmed := true
+    if show_debug_labels
+        label.new(bar_index, high, text="PDH SWEEP CONFIRMED\nTracked PDH: " + str.tostring(tracked_pdh), 
+                  color=color.orange, textcolor=color.white, style=label.style_label_down, size=size.tiny)
+
+if pdl_swept_today[1] and not pdl_swept_confirmed
+    pdl_swept_confirmed := true
+    if show_debug_labels
+        label.new(bar_index, low, text="PDL SWEEP CONFIRMED\nTracked PDL: " + str.tostring(tracked_pdl), 
+                  color=color.orange, textcolor=color.white, style=label.style_label_up, size=size.tiny)
+
+// Variables for proper breakout detection
+var bool highBreakoutToday = false
+var bool lowBreakoutToday = false
+
+// Track today's breakouts and reset on new day
+if newDay
+    highBreakoutToday := false
+    lowBreakoutToday := false
+
+// Variables to detect exact breakout moments
+highBreakout = false
+lowBreakout = false
+
+// Check for breakouts of the most recent day's levels only (index 0)
+if not na(array.get(prevHighs, 0)) and not highBreakoutToday
+    if high > array.get(prevHighs, 0) and high[1] <= array.get(prevHighs, 0)
+        highBreakout := true
+        highBreakoutToday := true
+        // Update line endpoint to current bar and mark as broken
+        lineObj = array.get(highLines, 0)
+        if not na(lineObj)
+            line.set_x2(lineObj, bar_index)
+        array.set(highBroken, 0, true)
+        array.set(highBreakBars, 0, bar_index)
+
+if not na(array.get(prevLows, 0)) and not lowBreakoutToday
+    if low < array.get(prevLows, 0) and low[1] >= array.get(prevLows, 0)
+        lowBreakout := true
+        lowBreakoutToday := true
+        // Update line endpoint to current bar and mark as broken
+        lineObj = array.get(lowLines, 0)
+        if not na(lineObj)
+            line.set_x2(lineObj, bar_index)
+        array.set(lowBroken, 0, true)
+        array.set(lowBreakBars, 0, bar_index)
+
+// Check for breakouts of older days' levels (without plotting triangles) - only if we have more than 1 day
+if dayCount > 1
+    for i = 1 to dayCount - 1
+        // Only check levels that are valid and not already broken
+        if not na(array.get(prevHighs, i)) and not array.get(highBroken, i)
+            // Current high breaks above previous day's high AND previous high was at or below
+            if high > array.get(prevHighs, i) and high[1] <= array.get(prevHighs, i)
+                // Set line endpoint to current bar and mark as broken
+                lineObj = array.get(highLines, i)
+                if not na(lineObj)
+                    line.set_x2(lineObj, bar_index)
+                array.set(highBroken, i, true)
+                array.set(highBreakBars, i, bar_index)
+        
+        // Check for low breakouts
+        if not na(array.get(prevLows, i)) and not array.get(lowBroken, i)
+            // Current low breaks below previous day's low AND previous low was at or above
+            if low < array.get(prevLows, i) and low[1] >= array.get(prevLows, i)
+                // Set line endpoint to current bar and mark as broken
+                lineObj = array.get(lowLines, i)
+                if not na(lineObj)
+                    line.set_x2(lineObj, bar_index)
+                array.set(lowBroken, i, true)
+                array.set(lowBreakBars, i, bar_index)
+
+// Update lines to extend to current bar ONLY if not broken yet
+if barstate.islast
+    for i = 0 to dayCount - 1
+        highLineObj = array.get(highLines, i)
+        lowLineObj = array.get(lowLines, i)
+        
+        // Only extend lines that haven't been broken
+        if not na(highLineObj) and not array.get(highBroken, i)
+            line.set_x2(highLineObj, bar_index)
+        if not na(lowLineObj) and not array.get(lowBroken, i)
+            line.set_x2(lowLineObj, bar_index)
+
+// Process new day
+if newDay
+    // Mark start of this day
+    prevDayEndBar := bar_index - 1
+    prevDayStartBar := currentDayStartBar
+    currentDayStartBar := bar_index
+    
+    // Calculate previous day's high and low
+    if prevDayStartBar >= 0 and prevDayEndBar > prevDayStartBar
+        // Initialize with the first bar's values
+        float dayHigh = high[bar_index - prevDayStartBar]
+        float dayLow = low[bar_index - prevDayStartBar]
+        int dayHighBar = prevDayStartBar
+        int dayLowBar = prevDayStartBar
+        
+        // Scan through all bars in the previous day
+        for i = prevDayStartBar to prevDayEndBar
+            barIndex = bar_index - i
+            if barIndex >= 0
+                // Update high if found higher value
+                if high[barIndex] > dayHigh
+                    dayHigh := high[barIndex]
+                    dayHighBar := i
+                
+                // Update low if found lower value
+                if low[barIndex] < dayLow
+                    dayLow := low[barIndex]
+                    dayLowBar := i
+        
+        // Shift all data in arrays (manually, without using negative loop step)
+        // First, temporarily store last items to handle edge case
+        float tempLastHigh = array.get(prevHighs, dayCount-1)
+        float tempLastLow = array.get(prevLows, dayCount-1)
+        int tempLastHighBar = array.get(highBars, dayCount-1)
+        int tempLastLowBar = array.get(lowBars, dayCount-1)
+        bool tempLastHighBroken = array.get(highBroken, dayCount-1)
+        bool tempLastLowBroken = array.get(lowBroken, dayCount-1)
+        int tempLastHighBreakBar = array.get(highBreakBars, dayCount-1)
+        int tempLastLowBreakBar = array.get(lowBreakBars, dayCount-1)
+        line tempLastHighLine = array.get(highLines, dayCount-1)
+        line tempLastLowLine = array.get(lowLines, dayCount-1)
+        
+        // Delete the last lines if they exist (to prevent memory leak)
+        if not na(tempLastHighLine)
+            line.delete(tempLastHighLine)
+        if not na(tempLastLowLine)
+            line.delete(tempLastLowLine)
+            
+        // Shift elements one by one (starting from the end) - only if we have more than 1 day
+        if dayCount > 1
+            for i = 0 to dayCount - 2
+                j = dayCount - 2 - i  // This creates a reverse loop effect with positive step
+                
+                // Move items from position j to j+1
+                array.set(prevHighs, j+1, array.get(prevHighs, j))
+                array.set(prevLows, j+1, array.get(prevLows, j))
+                array.set(highBars, j+1, array.get(highBars, j))
+                array.set(lowBars, j+1, array.get(lowBars, j))
+                array.set(highBroken, j+1, array.get(highBroken, j))
+                array.set(lowBroken, j+1, array.get(lowBroken, j))
+                array.set(highBreakBars, j+1, array.get(highBreakBars, j))
+                array.set(lowBreakBars, j+1, array.get(lowBreakBars, j))
+                array.set(highLines, j+1, array.get(highLines, j))
+                array.set(lowLines, j+1, array.get(lowLines, j))
+        
+        // Store new day's data at position 0
+        array.set(prevHighs, 0, dayHigh)
+        array.set(prevLows, 0, dayLow)
+        array.set(highBars, 0, dayHighBar)
+        array.set(lowBars, 0, dayLowBar)
+        array.set(highBroken, 0, false)
+        array.set(lowBroken, 0, false)
+        array.set(highBreakBars, 0, na)
+        array.set(lowBreakBars, 0, na)
+        
+        // Tracked levels are now automatically synced with array updates above
+        if show_debug_labels
+            label.new(bar_index, dayHigh, text="ARRAY UPDATED\nPDH: " + str.tostring(dayHigh) + "\nPDL: " + str.tostring(dayLow), 
+                      color=color.purple, textcolor=color.white, style=label.style_label_down, size=size.tiny)
+        
+        // Clear new line references
+        array.set(highLines, 0, na)
+        array.set(lowLines, 0, na)
+        
+        // Draw new lines for all days
+        for i = 0 to dayCount - 1
+            dayHigh := array.get(prevHighs, i)
+            dayLow := array.get(prevLows, i)
+            dayHighBar := array.get(highBars, i)
+            dayLowBar := array.get(lowBars, i)
+            
+            if not na(dayHigh) and not na(dayLow)
+                // Apply transparency to the colors (20% transparency)
+                highColorWithTransparency = color.new(pdh_color, 20)
+                lowColorWithTransparency = color.new(pdl_color, 20)
+                
+                // Create new lines with correct endpoints based on broken status
+                if array.get(highBroken, i)
+                    // Use the break bar as the endpoint for broken levels
+                    highBreakBar = array.get(highBreakBars, i)
+                    if not na(highBreakBar)
+                        newHighLine = line.new(x1=dayHighBar, y1=dayHigh, x2=highBreakBar, y2=dayHigh, color=highColorWithTransparency, width=2, style=line.style_dashed)
+                        array.set(highLines, i, newHighLine)
+                else
+                    // Extend to current bar for unbroken levels
+                    newHighLine = line.new(x1=dayHighBar, y1=dayHigh, x2=bar_index, y2=dayHigh, color=highColorWithTransparency, width=2, style=line.style_dashed)
+                    array.set(highLines, i, newHighLine)
+                
+                if array.get(lowBroken, i)
+                    // Use the break bar as the endpoint for broken levels
+                    lowBreakBar = array.get(lowBreakBars, i)
+                    if not na(lowBreakBar)
+                        newLowLine = line.new(x1=dayLowBar, y1=dayLow, x2=lowBreakBar, y2=dayLow, color=lowColorWithTransparency, width=2, style=line.style_dashed)
+                        array.set(lowLines, i, newLowLine)
+                else
+                    // Extend to current bar for unbroken levels
+                    newLowLine = line.new(x1=dayLowBar, y1=dayLow, x2=bar_index, y2=dayLow, color=lowColorWithTransparency, width=2, style=line.style_dashed)
+                    array.set(lowLines, i, newLowLine)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                           FIRST BAR HIGH/LOW TRACKING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Variables to store first bar high and low of current session
+var float first_bar_high = na
+var float first_bar_low = na
+
+// Update first bar levels when we hit the first bar of NY session
+if first_bar_of_session
+    first_bar_high := high
+    first_bar_low := low
+    if show_debug_labels
+        label.new(bar_index, (high + low) / 2, text="FIRST BAR CAPTURED\nHigh: " + str.tostring(first_bar_high) + "\nLow: " + str.tostring(first_bar_low), 
+                  color=color.yellow, textcolor=color.black, style=label.style_label_center, size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                           TP TRACKING FOR ONE-PER-DIRECTION RULE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Variables to track TP hits per session and direction
+var bool long_tp_hit_today = false
+var bool short_tp_hit_today = false
+
+// Trade tracking variables for opposite direction trades
+var bool long_trade_taken_today = false
+var bool short_trade_taken_today = false
+var int trades_taken_today = 0
+var bool daily_trades_complete = false
+
+// Reset TP tracking and trade tracking variables on first bar of new trading session
+if first_bar_of_session
+    long_tp_hit_today := false
+    short_tp_hit_today := false
+    long_trade_taken_today := false
+    short_trade_taken_today := false
+    trades_taken_today := 0
+    daily_trades_complete := false
+    // Reset pending limit orders
+    pending_long_limit := false
+    pending_short_limit := false
+    pending_long_limit_price := na
+    pending_short_limit_price := na
+    pending_long_entry_id := na
+    pending_short_entry_id := na
+    pending_long_tp_price := na
+    pending_short_tp_price := na
+    pending_long_sl_price := na
+    pending_short_sl_price := na
+    pending_long_qty := na
+    pending_short_qty := na
+    // CRITICAL: Reset sweep tracking at START OF TRADING SESSION
+    pdh_swept_today := false
+    pdl_swept_today := false
+    pdh_swept_confirmed := false
+    pdl_swept_confirmed := false
+
+// Track when trades close with profit (TP hit) or loss (SL hit)
+// Check if a trade just closed
+if strategy.closedtrades != strategy.closedtrades[1]  // New closed trade
+    last_trade_profit = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    last_trade_entry = strategy.closedtrades.entry_id(strategy.closedtrades - 1)
+    
+    // If the last trade was profitable, mark the direction as TP hit
+    if last_trade_profit > 0
+        if str.contains(last_trade_entry, "Long")
+            long_tp_hit_today := true
+        else if str.contains(last_trade_entry, "Short")
+            short_tp_hit_today := true
+    
+    // Check if we've reached our daily trade limit
+    if not enable_second_chance or trades_taken_today >= 2
+        daily_trades_complete := true
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               SESSION MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Check if current time is within trading session (for new trade entries)
+is_in_session = not na(time(timeframe.period, session_input, "America/New_York"))
+
+// Detect session end for order cancellation
+session_ended = is_in_session[1] and not is_in_session
+
+// Calculate force close session - last 2 bars before 17:00 NY
+chart_timeframe_seconds = timeframe.in_seconds()
+session_timeframe_seconds = math.max(chart_timeframe_seconds, 60)  // Minimum 1 minute
+
+// Calculate session time in minutes
+session_minutes = session_timeframe_seconds / 60
+close_start_minutes = (17 * 60) - (2 * session_minutes)  // 17:00 minus 2 bars
+close_start_hour = math.floor(close_start_minutes / 60)
+close_start_min = close_start_minutes % 60
+
+// Create force close session string
+force_close_session = str.format("{0,number,00}{1,number,00}-1700", close_start_hour, close_start_min)
+
+// Check if we're in the force close session (only if toggle is enabled)
+in_force_close_session = enable_force_close and not na(time(timeframe.period, force_close_session, "America/New_York"))
+
+// Only allow trades when in session AND not in force close period (if enabled)
+can_enter_trade = is_in_session and not in_force_close_session
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                           RETRY PENDING LIMIT ORDERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Retry pending long limit order
+if pending_long_limit and strategy.position_size == 0 and can_enter_trade
+    // Check if limit order is now valid (buy limit must be <= current close for longs)
+    if pending_long_limit_price <= close
+        strategy.entry(pending_long_entry_id, strategy.long, qty=pending_long_qty, limit=pending_long_limit_price)
+        strategy.exit(pending_long_entry_id + " Exit", pending_long_entry_id, limit=pending_long_tp_price, stop=pending_long_sl_price)
+        pending_long_limit := false  // Clear pending status
+        if show_debug_labels
+            retry_debug = "✅ RETRY SUCCESS - LONG:\n"
+            retry_debug := retry_debug + "Limit Price: " + str.tostring(pending_long_limit_price) + "\n"
+            retry_debug := retry_debug + "Current Close: " + str.tostring(close)
+            label.new(bar_index, high + (high - low) * 0.5, text=retry_debug, color=color.lime, textcolor=color.black, style=label.style_label_center, size=size.small)
+    else if show_debug_labels
+        wait_debug = "⏳ STILL WAITING - LONG:\n"
+        wait_debug := wait_debug + "Desired: " + str.tostring(pending_long_limit_price) + "\n"
+        wait_debug := wait_debug + "Current: " + str.tostring(close) + "\n"
+        wait_debug := wait_debug + "Need down: " + str.tostring(pending_long_limit_price - close)
+        label.new(bar_index, high + (high - low) * 0.3, text=wait_debug, color=color.yellow, textcolor=color.black, style=label.style_label_center, size=size.tiny)
+
+// Retry pending short limit order  
+if pending_short_limit and strategy.position_size == 0 and can_enter_trade
+    // Check if limit order is now valid (sell limit must be >= current close for shorts)
+    if pending_short_limit_price >= close
+        strategy.entry(pending_short_entry_id, strategy.short, qty=pending_short_qty, limit=pending_short_limit_price)
+        strategy.exit(pending_short_entry_id + " Exit", pending_short_entry_id, limit=pending_short_tp_price, stop=pending_short_sl_price)
+        pending_short_limit := false  // Clear pending status
+        if show_debug_labels
+            retry_debug = "✅ RETRY SUCCESS - SHORT:\n"
+            retry_debug := retry_debug + "Limit Price: " + str.tostring(pending_short_limit_price) + "\n"
+            retry_debug := retry_debug + "Current Close: " + str.tostring(close)
+            label.new(bar_index, low - (high - low) * 0.5, text=retry_debug, color=color.lime, textcolor=color.black, style=label.style_label_center, size=size.small)
+    else if show_debug_labels
+        wait_debug = "⏳ STILL WAITING - SHORT:\n"
+        wait_debug := wait_debug + "Desired: " + str.tostring(pending_short_limit_price) + "\n"
+        wait_debug := wait_debug + "Current: " + str.tostring(close) + "\n"
+        wait_debug := wait_debug + "Need up: " + str.tostring(close - pending_short_limit_price)
+        label.new(bar_index, low - (high - low) * 0.3, text=wait_debug, color=color.yellow, textcolor=color.black, style=label.style_label_center, size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               ENTRY CONDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Long condition: close cross above first bar high AND previous day high is above first bar high
+long_condition = can_enter_trade and not daily_trades_complete and not long_trade_taken_today and
+                 not na(first_bar_high) and not na(prev_day_high) and
+                 ta.crossover(close, first_bar_high) and 
+                 prev_day_high > first_bar_high and
+                 (not one_tp_per_direction or not long_tp_hit_today) and
+                 (not require_pdl_sweep_for_longs or pdl_swept_confirmed)
+
+// Short condition: close cross under first bar low AND previous day low is below first bar low  
+short_condition = can_enter_trade and not daily_trades_complete and not short_trade_taken_today and
+                  not na(first_bar_low) and not na(prev_day_low) and
+                  ta.crossunder(close, first_bar_low) and 
+                  prev_day_low < first_bar_low and
+                  (not one_tp_per_direction or not short_tp_hit_today) and
+                  (not require_pdh_sweep_for_shorts or pdh_swept_confirmed)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               DEBUG LABELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if show_debug_labels and in_ny_session
+    // Simplified critical conditions debug (only on breakouts)
+    if ta.crossover(close, first_bar_high)
+        critical_debug = "🔺 LONG BREAKOUT\n"
+        critical_debug := critical_debug + "Condition: " + str.tostring(long_condition) + "\n"  
+        critical_debug := critical_debug + "PDH>FB: " + str.tostring(prev_day_high > first_bar_high) + "\n"
+        critical_debug := critical_debug + "require_pdl_sweep_for_longs: " + str.tostring(require_pdl_sweep_for_longs) + "\n"
+        critical_debug := critical_debug + "pdl_swept_confirmed: " + str.tostring(pdl_swept_confirmed) + "\n"
+        critical_debug := critical_debug + "Sweep condition: " + str.tostring(not require_pdl_sweep_for_longs or pdl_swept_confirmed) + "\n"
+        critical_debug := critical_debug + "Trades today: " + str.tostring(trades_taken_today)
+        label.new(bar_index, close + (high - low) * 0.1, text=critical_debug, 
+                  color=color.new(color.blue, 20), textcolor=color.white, style=label.style_label_right, size=size.normal)
+    
+    if ta.crossunder(close, first_bar_low)
+        critical_debug = "🔻 SHORT BREAKOUT\n"
+        critical_debug := critical_debug + "Condition: " + str.tostring(short_condition) + "\n"
+        critical_debug := critical_debug + "PDL<FB: " + str.tostring(prev_day_low < first_bar_low) + "\n"
+        critical_debug := critical_debug + "PDH swept: " + str.tostring(pdh_swept_confirmed) + "\n"
+        critical_debug := critical_debug + "Trades today: " + str.tostring(trades_taken_today)
+        label.new(bar_index, close - (high - low) * 0.1, text=critical_debug, 
+                  color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_right, size=size.normal)
+                  
+
+
+// Simple daily status (far left to avoid overlap)
+if show_debug_labels and in_ny_session and bar_index % 100 == 0
+    simple_status = "Trades: " + str.tostring(trades_taken_today)
+    label.new(bar_index - 10, (high + low) / 2, text=simple_status, 
+              color=color.new(color.gray, 90), textcolor=color.white, style=label.style_label_left, size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               POSITION SIZING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Calculate position size based on selected method
+var float position_size = na
+
+if pos_size_type == "Fixed Contracts"
+    position_size := fixed_contracts
+else // Risk-based
+    // For long trades: SL distance is from entry to first bar low
+    // For short trades: SL distance is from entry to first bar high
+    var float sl_distance = na
+    
+    if long_condition and not na(first_bar_low)
+        sl_distance := close - first_bar_low
+    else if short_condition and not na(first_bar_high)
+        sl_distance := first_bar_high - close
+    
+    // Calculate position size based on risk amount and stop loss distance
+    if not na(sl_distance) and sl_distance > 0
+        position_size := risk_amount / sl_distance
+    else
+        position_size := fixed_contracts  // Fallback to fixed contracts
+
+// Round position size to avoid fractional contracts
+position_size := math.round(position_size)
+position_size := math.max(position_size, 1)  // Ensure minimum of 1 contract
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               POSITION VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Arrays to store historical trade boxes
+var array<box> historical_trade_boxes = array.new<box>()
+var array<box> historical_sl_boxes = array.new<box>()
+var array<box> historical_tp_boxes = array.new<box>()
+
+// Variables to track current active trade boxes for extending to exit
+var box current_profit_box = na
+var box current_sl_box = na
+
+// General position close detection for extending boxes - Handle timing issues
+if barstate.isconfirmed and strategy.position_size == 0 and strategy.position_size[1] != 0
+    // Extend trade visualization boxes to exact exit point when any position closes
+    if not na(current_profit_box)
+        // Ensure minimum 8 bars width or extend to current bar, whichever is longer
+        box_left = box.get_left(current_profit_box)
+        min_right = box_left + 8
+        final_right = math.max(min_right, bar_index)
+        box.set_right(current_profit_box, final_right)
+        current_profit_box := na  // Clear reference after extending
+    if not na(current_sl_box)
+        // Ensure minimum 8 bars width or extend to current bar, whichever is longer
+        box_left = box.get_left(current_sl_box)
+        min_right = box_left + 8
+        final_right = math.max(min_right, bar_index)
+        box.set_right(current_sl_box, final_right)
+        current_sl_box := na  // Clear reference after extending
+
+// Backup safety check - extend boxes if position is closed but boxes still active
+if not na(current_profit_box) and strategy.position_size == 0
+    box_left = box.get_left(current_profit_box)
+    min_right = box_left + 8
+    final_right = math.max(min_right, bar_index)
+    box.set_right(current_profit_box, final_right)
+    current_profit_box := na
+if not na(current_sl_box) and strategy.position_size == 0
+    box_left = box.get_left(current_sl_box)
+    min_right = box_left + 8
+    final_right = math.max(min_right, bar_index)
+    box.set_right(current_sl_box, final_right)
+    current_sl_box := na
+
+// Reset visualization boxes on new day
+if first_bar_of_session
+    current_profit_box := na
+    current_sl_box := na
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               STRATEGY EXECUTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Position Flip Logic: Close current position and enter opposite direction
+if enable_position_flip and strategy.position_size != 0
+    // Check for opposite signal while in long position
+    if strategy.position_size > 0 and short_condition
+        // Close existing boxes for the current position
+        if not na(current_profit_box)
+            box.set_right(current_profit_box, bar_index)
+            current_profit_box := na
+        if not na(current_sl_box)
+            box.set_right(current_sl_box, bar_index)
+            current_sl_box := na
+            
+        strategy.close_all(comment="Flip to Short")
+        if show_debug_labels
+            label.new(bar_index, high + (high - low) * 0.3, text="🔄 FLIP TO SHORT", color=color.orange, textcolor=color.white, style=label.style_label_center, size=size.normal)
+        
+        // Enter short position immediately
+        entry_id = "Short Flip"
+        exit_id = "Short Flip Exit"
+        
+        // Calculate adjusted prices
+        adjusted_limit_price = first_bar_low - (current_atr * limit_atr_improvement)
+        adjusted_tp_price = prev_day_low + (current_atr * tp_atr_reduction)
+        
+        if use_limit_orders
+            strategy.entry(entry_id, strategy.short, qty=position_size, limit=adjusted_limit_price)
+        else
+            strategy.entry(entry_id, strategy.short, qty=position_size)
+        strategy.exit(exit_id, entry_id, limit=adjusted_tp_price, stop=first_bar_high)
+        
+        // Update trade tracking
+        short_trade_taken_today := true
+        trades_taken_today := trades_taken_today + 1
+        
+        // Create visualization for flipped trade
+        entry_level = use_limit_orders ? adjusted_limit_price : close
+        current_profit_box := box.new(left=bar_index, top=entry_level, right=bar_index + 8, bottom=adjusted_tp_price, bgcolor=color.new(color.blue, 70), border_width=0)
+        current_sl_box := box.new(left=bar_index, top=first_bar_high, right=bar_index + 8, bottom=entry_level, bgcolor=color.new(color.red, 70), border_width=0)
+        
+    // Check for opposite signal while in short position  
+    else if strategy.position_size < 0 and long_condition
+        // Close existing boxes for the current position
+        if not na(current_profit_box)
+            box.set_right(current_profit_box, bar_index)
+            current_profit_box := na
+        if not na(current_sl_box)
+            box.set_right(current_sl_box, bar_index)
+            current_sl_box := na
+            
+        strategy.close_all(comment="Flip to Long")
+        if show_debug_labels
+            label.new(bar_index, low - (high - low) * 0.3, text="🔄 FLIP TO LONG", color=color.orange, textcolor=color.white, style=label.style_label_center, size=size.normal)
+        
+        // Enter long position immediately
+        entry_id = "Long Flip"
+        exit_id = "Long Flip Exit"
+        
+        // Calculate adjusted prices
+        adjusted_limit_price = first_bar_high - (current_atr * limit_atr_improvement)
+        adjusted_tp_price = prev_day_high - (current_atr * tp_atr_reduction)
+        
+        if use_limit_orders
+            strategy.entry(entry_id, strategy.long, qty=position_size, limit=adjusted_limit_price)
+        else
+            strategy.entry(entry_id, strategy.long, qty=position_size)
+        strategy.exit(exit_id, entry_id, limit=adjusted_tp_price, stop=first_bar_low)
+        
+        // Update trade tracking
+        long_trade_taken_today := true
+        trades_taken_today := trades_taken_today + 1
+        
+        // Create visualization for flipped trade
+        entry_level = use_limit_orders ? adjusted_limit_price : close
+        current_profit_box := box.new(left=bar_index, top=adjusted_tp_price, right=bar_index + 8, bottom=entry_level, bgcolor=color.new(color.blue, 70), border_width=0)
+        current_sl_box := box.new(left=bar_index, top=entry_level, right=bar_index + 8, bottom=first_bar_low, bgcolor=color.new(color.red, 70), border_width=0)
+
+// Simple blocked trade indicator (only when position flip is disabled)
+if long_condition and strategy.position_size != 0 and not enable_position_flip and show_debug_labels
+    label.new(bar_index + 3, high + (high - low) * 0.8, text="❌ BLOCKED", color=color.orange, textcolor=color.white, style=label.style_label_center, size=size.normal)
+
+// Long Entry: TP = Previous Day High, SL = First Bar Low
+if long_condition and strategy.position_size == 0
+    
+    // Determine entry ID based on trade count
+    entry_id = trades_taken_today > 0 ? "Long 2nd" : "Long"
+    exit_id = trades_taken_today > 0 ? "Long Exit 2nd" : "Long Exit"
+    
+    // Calculate adjusted prices
+    adjusted_limit_price = first_bar_high - (current_atr * limit_atr_improvement)
+    adjusted_tp_price = prev_day_high - (current_atr * tp_atr_reduction)
+    
+    // DEBUG: Capture exact values at moment of trade execution (AFTER calculations)
+    if show_debug_labels
+        entry_debug = "STRATEGY.ENTRY() PARAMS:\n"
+        entry_debug := entry_debug + "Entry ID: " + entry_id + "\n"
+        entry_debug := entry_debug + "Qty: " + str.tostring(position_size) + "\n"
+        entry_debug := entry_debug + "Use Limit: " + str.tostring(use_limit_orders) + "\n"
+        entry_debug := entry_debug + "Limit Price: " + str.tostring(adjusted_limit_price) + "\n"
+        entry_debug := entry_debug + "Current Close: " + str.tostring(close)
+        label.new(bar_index - 3, high + (high - low) * 1.5, text=entry_debug, color=color.yellow, textcolor=color.black, style=label.style_label_center, size=size.small)
+    
+    if use_limit_orders
+        // Check if limit order is valid (buy limit must be <= current close for longs)
+        if adjusted_limit_price <= close
+            strategy.entry(entry_id, strategy.long, qty=position_size, limit=adjusted_limit_price)
+            if show_debug_labels
+                strategy_debug = "📝 LIMIT ORDER PLACED:\n"
+                strategy_debug := strategy_debug + "Entry ID: " + entry_id + "\n"
+                strategy_debug := strategy_debug + "Direction: LONG\n"
+                strategy_debug := strategy_debug + "Qty: " + str.tostring(position_size) + "\n"
+                strategy_debug := strategy_debug + "Limit Price: " + str.tostring(adjusted_limit_price) + "\n"
+                strategy_debug := strategy_debug + "Current Close: " + str.tostring(close) + "\n"
+                strategy_debug := strategy_debug + "Distance from close: " + str.tostring(adjusted_limit_price - close)
+                label.new(bar_index + 1, high + (high - low) * 1.0, text=strategy_debug, color=color.purple, textcolor=color.white, style=label.style_label_center, size=size.normal)
+        else
+            // Store pending limit order for retry on next bars
+            pending_long_limit := true
+            pending_long_limit_price := adjusted_limit_price
+            pending_long_entry_id := entry_id
+            pending_long_tp_price := adjusted_tp_price
+            pending_long_sl_price := first_bar_low
+            pending_long_qty := position_size
+            
+            if show_debug_labels
+                wait_debug = "⏳ STORED PENDING LONG:\n"
+                wait_debug := wait_debug + "Desired Limit: " + str.tostring(adjusted_limit_price) + "\n"
+                wait_debug := wait_debug + "Current Close: " + str.tostring(close) + "\n"
+                wait_debug := wait_debug + "Need price to move down: " + str.tostring(adjusted_limit_price - close) + "\n"
+                wait_debug := wait_debug + "Will retry each bar"
+                label.new(bar_index + 1, high + (high - low) * 1.0, text=wait_debug, color=color.orange, textcolor=color.white, style=label.style_label_center, size=size.normal)
+    else
+        strategy.entry(entry_id, strategy.long, qty=position_size)
+        if show_debug_labels
+            label.new(bar_index + 1, high + (high - low) * 1.0, text="📝 MARKET ORDER PLACED", color=color.purple, textcolor=color.white, style=label.style_label_center, size=size.small)
+    strategy.exit(exit_id, entry_id, limit=adjusted_tp_price, stop=first_bar_low)
+    
+    // DEBUG: Check strategy state after entry attempt
+    if show_debug_labels
+        post_debug = "POST-ENTRY STATE:\n"
+        post_debug := post_debug + "Position Size: " + str.tostring(strategy.position_size) + "\n"
+        post_debug := post_debug + "Open Trades: " + str.tostring(strategy.opentrades)
+        label.new(bar_index + 2, high + (high - low) * 0.5, text=post_debug, color=color.maroon, textcolor=color.white, style=label.style_label_center, size=size.small)
+
+    // Update trade tracking
+    long_trade_taken_today := true
+    trades_taken_today := trades_taken_today + 1
+    
+    // Check if we should stop trading for the day
+    if not enable_second_chance or trades_taken_today >= 2
+        daily_trades_complete := true
+    
+    // Create trade visualization boxes (TradingView style) - Minimum 8 bars width
+    // Blue profit zone box (from entry to take profit) - using adjusted prices
+    entry_level = use_limit_orders ? adjusted_limit_price : close
+    current_profit_box := box.new(left=bar_index, top=adjusted_tp_price, right=bar_index + 8, bottom=entry_level, bgcolor=color.new(color.blue, 70), border_width=0)
+    
+    // Red stop loss zone box (from entry to stop loss)
+    current_sl_box := box.new(left=bar_index, top=entry_level, right=bar_index + 8, bottom=first_bar_low, bgcolor=color.new(color.red, 70), border_width=0)
+    
+    // Store trade boxes for historical display
+    array.push(historical_trade_boxes, current_profit_box)
+    array.push(historical_sl_boxes, current_sl_box)
+    array.push(historical_tp_boxes, na)
+
+// Simple blocked trade indicator (only when position flip is disabled)  
+if short_condition and strategy.position_size != 0 and not enable_position_flip and show_debug_labels
+    label.new(bar_index + 3, low - (high - low) * 0.8, text="❌ BLOCKED", color=color.orange, textcolor=color.white, style=label.style_label_center, size=size.normal)
+
+// Short Entry: TP = Previous Day Low, SL = First Bar High
+if short_condition and strategy.position_size == 0
+    
+    // Determine entry ID based on trade count
+    entry_id = trades_taken_today > 0 ? "Short 2nd" : "Short"
+    exit_id = trades_taken_today > 0 ? "Short Exit 2nd" : "Short Exit"
+    
+    // Calculate adjusted prices
+    adjusted_limit_price = first_bar_low - (current_atr * limit_atr_improvement)
+    adjusted_tp_price = prev_day_low + (current_atr * tp_atr_reduction)
+    
+    // DEBUG: Show ATR calculation details for short trades (only when debug enabled)
+    if show_debug_labels
+        atr_debug = "🔍 SHORT ATR DEBUG:\n"
+        atr_debug := atr_debug + "first_bar_low: " + str.tostring(first_bar_low) + "\n"
+        atr_debug := atr_debug + "current_atr: " + str.tostring(current_atr) + "\n" 
+        atr_debug := atr_debug + "limit_atr_improvement: " + str.tostring(limit_atr_improvement) + "\n"
+        atr_debug := atr_debug + "ATR adjustment: " + str.tostring(current_atr * limit_atr_improvement) + "\n"
+        atr_debug := atr_debug + "adjusted_limit_price: " + str.tostring(adjusted_limit_price)
+        label.new(bar_index - 5, low - (high - low) * 2.0, text=atr_debug, color=color.lime, textcolor=color.black, style=label.style_label_center, size=size.normal)
+    
+    // DEBUG: Capture exact values at moment of trade execution (AFTER calculations)
+    if show_debug_labels
+        entry_debug = "STRATEGY.ENTRY() PARAMS:\n"
+        entry_debug := entry_debug + "Entry ID: " + entry_id + "\n"
+        entry_debug := entry_debug + "Qty: " + str.tostring(position_size) + "\n"
+        entry_debug := entry_debug + "Use Limit: " + str.tostring(use_limit_orders) + "\n"
+        entry_debug := entry_debug + "Limit Price: " + str.tostring(adjusted_limit_price) + "\n"
+        entry_debug := entry_debug + "Current Close: " + str.tostring(close)
+        label.new(bar_index - 3, low - (high - low) * 1.5, text=entry_debug, color=color.yellow, textcolor=color.black, style=label.style_label_center, size=size.small)
+    
+    if use_limit_orders
+        // Check if limit order is valid (sell limit must be >= current close for shorts)
+        if adjusted_limit_price >= close
+            strategy.entry(entry_id, strategy.short, qty=position_size, limit=adjusted_limit_price)
+            if show_debug_labels
+                strategy_debug = "📝 LIMIT ORDER PLACED:\n"
+                strategy_debug := strategy_debug + "Entry ID: " + entry_id + "\n"
+                strategy_debug := strategy_debug + "Direction: SHORT\n"
+                strategy_debug := strategy_debug + "Qty: " + str.tostring(position_size) + "\n"
+                strategy_debug := strategy_debug + "Limit Price: " + str.tostring(adjusted_limit_price) + "\n"
+                strategy_debug := strategy_debug + "Current Close: " + str.tostring(close) + "\n"
+                strategy_debug := strategy_debug + "Distance from close: " + str.tostring(adjusted_limit_price - close)
+                label.new(bar_index + 1, low - (high - low) * 1.0, text=strategy_debug, color=color.purple, textcolor=color.white, style=label.style_label_center, size=size.normal)
+        else
+            // Store pending limit order for retry on next bars
+            pending_short_limit := true
+            pending_short_limit_price := adjusted_limit_price
+            pending_short_entry_id := entry_id
+            pending_short_tp_price := adjusted_tp_price
+            pending_short_sl_price := first_bar_high
+            pending_short_qty := position_size
+            
+            if show_debug_labels
+                wait_debug = "⏳ STORED PENDING SHORT:\n"
+                wait_debug := wait_debug + "Desired Limit: " + str.tostring(adjusted_limit_price) + "\n"
+                wait_debug := wait_debug + "Current Close: " + str.tostring(close) + "\n"
+                wait_debug := wait_debug + "Need price to move up: " + str.tostring(close - adjusted_limit_price) + "\n"
+                wait_debug := wait_debug + "Will retry each bar"
+                label.new(bar_index + 1, low - (high - low) * 1.0, text=wait_debug, color=color.orange, textcolor=color.white, style=label.style_label_center, size=size.normal)
+    else
+        strategy.entry(entry_id, strategy.short, qty=position_size)
+        if show_debug_labels
+            label.new(bar_index + 1, low - (high - low) * 1.0, text="📝 MARKET ORDER PLACED", color=color.purple, textcolor=color.white, style=label.style_label_center, size=size.small)
+    strategy.exit(exit_id, entry_id, limit=adjusted_tp_price, stop=first_bar_high)
+    
+    // DEBUG: Check strategy state after entry attempt
+    if show_debug_labels
+        post_debug = "POST-ENTRY STATE:\n"
+        post_debug := post_debug + "Position Size: " + str.tostring(strategy.position_size) + "\n"
+        post_debug := post_debug + "Open Trades: " + str.tostring(strategy.opentrades)
+        label.new(bar_index + 2, low - (high - low) * 0.5, text=post_debug, color=color.maroon, textcolor=color.white, style=label.style_label_center, size=size.small)
+
+    // Update trade tracking
+    short_trade_taken_today := true
+    trades_taken_today := trades_taken_today + 1
+    
+    // Check if we should stop trading for the day
+    if not enable_second_chance or trades_taken_today >= 2
+        daily_trades_complete := true
+    
+    // Create trade visualization boxes (TradingView style) - Minimum 8 bars width
+    // Blue profit zone box (from entry to take profit) - using adjusted prices
+    entry_level = use_limit_orders ? adjusted_limit_price : close
+    current_profit_box := box.new(left=bar_index, top=entry_level, right=bar_index + 8, bottom=adjusted_tp_price, bgcolor=color.new(color.blue, 70), border_width=0)
+    
+    // Red stop loss zone box (from entry to stop loss)
+    current_sl_box := box.new(left=bar_index, top=first_bar_high, right=bar_index + 8, bottom=entry_level, bgcolor=color.new(color.red, 70), border_width=0)
+    
+    // Store trade boxes for historical display
+    array.push(historical_trade_boxes, current_profit_box)
+    array.push(historical_sl_boxes, current_sl_box)
+    array.push(historical_tp_boxes, na)
+
+// Force close all positions when in close session (only if toggle is enabled)
+if in_force_close_session and strategy.position_size != 0
+    // Extend boxes immediately before session close to prevent timing issues
+    if not na(current_profit_box)
+        // Ensure minimum 8 bars width or extend to current bar, whichever is longer
+        box_left = box.get_left(current_profit_box)
+        min_right = box_left + 8
+        final_right = math.max(min_right, bar_index)
+        box.set_right(current_profit_box, final_right)
+        current_profit_box := na  // Clear reference after extending
+    if not na(current_sl_box)
+        // Ensure minimum 8 bars width or extend to current bar, whichever is longer
+        box_left = box.get_left(current_sl_box)
+        min_right = box_left + 8
+        final_right = math.max(min_right, bar_index)
+        box.set_right(current_sl_box, final_right)
+        current_sl_box := na  // Clear reference after extending
+    
+    strategy.close_all(comment="Force Close - Last 2 bars before 17:00 NY")
+
+// Cancel all pending orders at session end (only if toggle is enabled)
+if enable_cancel_orders and session_ended
+    strategy.cancel_all()
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                               VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Previous day high/low lines are now drawn using the sophisticated line drawing logic above
+
+// Plot first bar high and low (only during and after NY session)
+plot(show_levels and not na(first_bar_high) and in_ny_session ? first_bar_high : na, 
+     title="First Bar High", 
+     color=first_bar_high_color, 
+     linewidth=2, 
+     style=plot.style_steplinebr)
+
+plot(show_levels and not na(first_bar_low) and in_ny_session ? first_bar_low : na, 
+     title="First Bar Low", 
+     color=first_bar_low_color, 
+     linewidth=2, 
+     style=plot.style_steplinebr)
+
+// Plot session background
+bgcolor(is_in_session ? color.new(color.blue, 95) : na, title="Trading Session")
+
+// Plot force close session background (only if toggle is enabled)
+bgcolor(in_force_close_session ? color.new(color.red, 90) : na, 
+     title="Close Session - Last 2 bars before 17:00")
+
+// Plot entry signals
+is_second_trade_long = long_condition and trades_taken_today > 0
+is_second_trade_short = short_condition and trades_taken_today > 0
+
+plotshape(long_condition and not is_second_trade_long, "Long Signal", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(short_condition and not is_second_trade_short, "Short Signal", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// Plot second trade signals with different color
+plotshape(is_second_trade_long, "Long 2nd Trade", shape.triangleup, location.belowbar, color.orange, size=size.small)
+plotshape(is_second_trade_short, "Short 2nd Trade", shape.triangledown, location.abovebar, color.orange, size=size.small)
+
+// Plot sweep indicators
+plotshape(not na(tracked_pdh) and not pdh_swept_today[1] and pdh_swept_today, "PDH Swept", shape.diamond, location.abovebar, color.orange, size=size.tiny)
+plotshape(not na(tracked_pdl) and not pdl_swept_today[1] and pdl_swept_today, "PDL Swept", shape.diamond, location.belowbar, color.orange, size=size.tiny)
+
+// Add labels for first bar levels only (PDH/PDL are now drawn as lines with proper endpoints)
+if show_levels and barstate.islast
+    if not na(first_bar_high) and in_ny_session
+        label.new(bar_index, first_bar_high, 
+                  text="FB High", 
+                  style=label.style_label_down, 
+                  color=first_bar_high_color, 
+                  textcolor=color.white, 
+                  size=size.small)
+    
+    if not na(first_bar_low) and in_ny_session
+        label.new(bar_index, first_bar_low,
+                  text="FB Low",
+                  style=label.style_label_up,
+                  color=first_bar_low_color,
+                  textcolor=color.white,
+                  size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                         SIGNAL INFO LABEL (top-right of bar)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Persistent label — deleted and redrawn each signal so it stays clean
+var label signal_label = na
+
+if long_condition
+    label.delete(signal_label)
+    float sig_entry = first_bar_high - (current_atr * limit_atr_improvement)
+    float sig_sl    = first_bar_low
+    float sig_risk  = sig_entry - sig_sl
+    float sig_tp2   = sig_entry + sig_risk * 2.0
+    float sig_tp3   = sig_entry + sig_risk * 3.0
+    sig_txt = "🟢 LONG MNQ\n"
+    sig_txt := sig_txt + "────────────────\n"
+    sig_txt := sig_txt + "Entry : " + str.tostring(math.round(sig_entry, 2)) + "\n"
+    sig_txt := sig_txt + "SL    : " + str.tostring(math.round(sig_sl,    2)) + "  (-" + str.tostring(math.round(sig_risk, 1)) + " pts)\n"
+    sig_txt := sig_txt + "TP 2R : " + str.tostring(math.round(sig_tp2,   2)) + "  (+" + str.tostring(math.round(sig_risk * 2.0, 1)) + " pts)\n"
+    sig_txt := sig_txt + "TP 3R : " + str.tostring(math.round(sig_tp3,   2)) + "  (+" + str.tostring(math.round(sig_risk * 3.0, 1)) + " pts)"
+    signal_label := label.new(bar_index + 2, high + (high - low) * 2.5, text=sig_txt,
+                               style=label.style_label_left, color=color.new(color.green, 10),
+                               textcolor=color.white, size=size.normal)
+
+if short_condition
+    label.delete(signal_label)
+    float sig_entry = first_bar_low - (current_atr * limit_atr_improvement)
+    float sig_sl    = first_bar_high
+    float sig_risk  = sig_sl - sig_entry
+    float sig_tp2   = sig_entry - sig_risk * 2.0
+    float sig_tp3   = sig_entry - sig_risk * 3.0
+    sig_txt = "🔴 SHORT MNQ\n"
+    sig_txt := sig_txt + "────────────────\n"
+    sig_txt := sig_txt + "Entry : " + str.tostring(math.round(sig_entry, 2)) + "\n"
+    sig_txt := sig_txt + "SL    : " + str.tostring(math.round(sig_sl,    2)) + "  (+" + str.tostring(math.round(sig_risk, 1)) + " pts)\n"
+    sig_txt := sig_txt + "TP 2R : " + str.tostring(math.round(sig_tp2,   2)) + "  (-" + str.tostring(math.round(sig_risk * 2.0, 1)) + " pts)\n"
+    sig_txt := sig_txt + "TP 3R : " + str.tostring(math.round(sig_tp3,   2)) + "  (-" + str.tostring(math.round(sig_risk * 3.0, 1)) + " pts)"
+    signal_label := label.new(bar_index + 2, low - (high - low) * 2.5, text=sig_txt,
+                               style=label.style_label_left, color=color.new(color.red, 10),
+                               textcolor=color.white, size=size.normal)
