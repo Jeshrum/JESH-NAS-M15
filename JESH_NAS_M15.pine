@@ -2,9 +2,9 @@
 // © Roboquant.ai
 
 //@version=6
-strategy("JDUB Strategy Roboquant.ai [OPTIMIZED]",
-     overlay=true, 
-     initial_capital=150000, 
+strategy("JESH NAS M15 — Prop Firm Edition",
+     overlay=true,
+     initial_capital=10000,
      default_qty_type=strategy.fixed, 
      default_qty_value=1, 
      margin_long=0.01, 
@@ -42,15 +42,29 @@ require_pdh_sweep_for_shorts = input.bool(true, "Require PDH Sweep for Short Ent
 enable_second_chance = input.bool(false, "Trade Opposite Direction if Valid Breakout", tooltip="When enabled, allows up to 2 trades per day - one in each direction if both breakouts are valid", group="Trading Session")
 enable_position_flip = input.bool(false, "Close Current Trade on Opposite Signal", tooltip="When enabled, closes current position and enters opposite direction when new signal occurs", group="Trading Session")
 
+// ─── Prop Firm Account & Risk Mode ──────────────────────────────────────────
+// Account size — set to your actual prop firm account
+account_size = input.int(10000, "Account Size ($)", minval=100, step=500,
+     tooltip="Your prop firm account size. Used to calculate risk per trade.", group="Position Sizing")
+
+// Risk mode — Conservative / Normal / Aggressive
+// Conservative = 1% risk/trade  →  safe within 5% daily loss rule
+// Normal       = 2% risk/trade  →  comfortable headroom
+// Aggressive   = 3% risk/trade  →  close to daily limit, use with care
+risk_mode = input.string("Normal (2%)", "Risk Mode",
+     options=["Conservative (1%)", "Normal (2%)", "Aggressive (3%)"],
+     tooltip="Controls how much of your account you risk per trade.\nConservative=1%  Normal=2%  Aggressive=3%\nProp firm daily loss limit is usually 5% — stay within it.",
+     group="Position Sizing")
+
+// Derive risk amount from mode
+risk_pct    = risk_mode == "Conservative (1%)" ? 0.01 : risk_mode == "Normal (2%)" ? 0.02 : 0.03
+risk_amount = math.round(account_size * risk_pct)
+
 // Position Sizing Type Selection
-pos_size_type = input.string("Risk-Based", "Position Size Type", options=["Fixed Contracts", "Risk-Based"], tooltip="Choose between fixed contracts or risk-based position sizing", group="Position Sizing")
+pos_size_type   = input.string("Risk-Based", "Position Size Type", options=["Fixed Contracts", "Risk-Based"], tooltip="Choose between fixed contracts or risk-based position sizing", group="Position Sizing")
 
-// Fixed contracts
+// Fixed contracts fallback
 fixed_contracts = input.int(1, "Fixed Contracts", minval=1, step=1, group="Position Sizing")
-
-// Risk-based sizing
-risk_amount = input.int(300, "Risk Amount ($)", minval=10, step=10, 
-     tooltip="Dollar amount to risk per trade (used with stop loss for position sizing)", group="Position Sizing")
 
 // Visualization inputs
 show_levels = input.bool(true, "Show PDH/PDL and First Bar Levels", group="Visualization")
