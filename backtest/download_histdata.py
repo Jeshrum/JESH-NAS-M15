@@ -15,7 +15,7 @@ import os
 import io
 import time
 import zipfile
-import requests
+import webbrowser
 import pandas as pd
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -23,65 +23,7 @@ YEARS_TO_DOWNLOAD = [2023, 2024, 2025]   # Add/remove years as needed
 OUTPUT_FILE       = "NAS100_15m.csv"
 RAW_FOLDER        = "histdata_raw"       # Folder to store downloaded ZIPs
 
-# HistData endpoints
-BASE_URL     = "https://www.histdata.com"
-DOWNLOAD_URL = "https://www.histdata.com/get.php"
 REFERER_URL  = "https://www.histdata.com/download-free-forex-data/?/metatrader/1-minute-bar-quotes/NSXUSD"
-
-HEADERS = {
-    "User-Agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                     "Chrome/120.0.0.0 Safari/537.36",
-    "Referer":       REFERER_URL,
-    "Origin":        BASE_URL,
-    "Content-Type":  "application/x-www-form-urlencoded",
-}
-
-
-# ─── Download a single year ───────────────────────────────────────────────────
-def download_year(year: int, session: requests.Session) -> bytes | None:
-    """
-    POST to histdata download endpoint for a given year.
-    Returns raw ZIP bytes or None on failure.
-    """
-    payload = {
-        "tk":         get_token(session),
-        "date":       str(year),
-        "datemonth":  "",
-        "platform":   "MT",
-        "timeframe":  "M1",
-        "fxpair":     "NSXUSD",
-    }
-
-    print(f"  [↓] Requesting {year}...", end=" ", flush=True)
-    try:
-        resp = session.post(DOWNLOAD_URL, data=payload, headers=HEADERS, timeout=120)
-        if resp.status_code == 200 and resp.content[:2] == b"PK":
-            print(f"✓  ({len(resp.content) / 1024 / 1024:.1f} MB)")
-            return resp.content
-        else:
-            print(f"✗  Status {resp.status_code} — unexpected response")
-            return None
-    except Exception as e:
-        print(f"✗  Error: {e}")
-        return None
-
-
-def get_token(session: requests.Session) -> str:
-    """
-    Fetch the hidden _token field from the histdata page.
-    Required for the POST request to succeed.
-    """
-    try:
-        from bs4 import BeautifulSoup
-        resp = session.get(REFERER_URL, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=30)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        token_input = soup.find("input", {"name": "tk"})
-        if token_input:
-            return token_input.get("value", "")
-    except Exception:
-        pass
-    return ""
 
 
 # ─── Parse MetaTrader M1 CSV ──────────────────────────────────────────────────
@@ -144,6 +86,18 @@ def resample_to_15m(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
+def open_browser_downloads():
+    """Open the histdata download page in the browser."""
+    print("\n  Opening histdata.com in your browser...")
+    print("  On the page:")
+    print("  1. Make sure 'MetaTrader' platform is selected")
+    print("  2. Select YEAR from the dropdown")
+    print("  3. Click the green DOWNLOAD button")
+    print(f"  4. Move the downloaded ZIP to: {os.path.abspath(RAW_FOLDER)}/\n")
+    time.sleep(1)
+    webbrowser.open(REFERER_URL)
+
+
 def main():
     os.makedirs(RAW_FOLDER, exist_ok=True)
     all_frames = []
@@ -151,7 +105,7 @@ def main():
     print("\n" + "="*55)
     print("  JESH NAS M15 — HistData.com Data Processor")
     print("="*55)
-    print(f"  Instrument : NSXUSD (NAS100)")
+    print(f"  Instrument : NSXUSD (NAS100 / Nasdaq)")
     print(f"  Years      : {YEARS_TO_DOWNLOAD}")
     print(f"  Output     : {OUTPUT_FILE}")
     print("="*55 + "\n")
@@ -159,18 +113,34 @@ def main():
     # Check if any ZIPs already exist in histdata_raw/
     found_zips = [
         f for f in os.listdir(RAW_FOLDER)
-        if f.endswith(".zip") and "NSXUSD" in f.upper()
+        if f.lower().endswith(".zip")
     ]
 
     if not found_zips:
-        print("[INFO] No ZIP files found in histdata_raw/")
+        print(f"[INFO] No ZIP files found in histdata_raw/")
+        print(f"[INFO] Opening browser to download them now...\n")
+        open_browser_downloads()
         print_manual_instructions()
         return
 
-    print(f"[INFO] Found {len(found_zips)} ZIP file(s): {found_zips}\n")
+    print(f"[INFO] Found {len(found_zips)} ZIP file(s):")
+    for z in found_zips:
+        print(f"       • {z}")
+
+    # Check which years are missing
+    missing = [y for y in YEARS_TO_DOWNLOAD
+               if not any(str(y) in f for f in found_zips)]
+    if missing:
+        print(f"\n[INFO] Missing years: {missing}")
+        print(f"[INFO] Opening browser to download them...\n")
+        open_browser_downloads()
+        print(f"  After downloading, move ZIPs to:")
+        print(f"  {os.path.abspath(RAW_FOLDER)}/")
+        print(f"  Then run this script again.\n")
+        # Still process what we have
+        print("[INFO] Processing available ZIPs now...\n")
 
     for year in YEARS_TO_DOWNLOAD:
-        # Accept any filename containing the year
         matches = [f for f in found_zips if str(year) in f]
         if not matches:
             print(f"  [SKIP] No ZIP found for {year}")
@@ -187,7 +157,8 @@ def main():
 
     if not all_frames:
         print("\n[ERROR] Could not parse any data from the ZIP files.")
-        print("  Make sure files are from histdata.com MetaTrader format.")
+        print("  Make sure files are MetaTrader format from histdata.com")
+        print_manual_instructions()
         return
 
     # ── Merge all years ──────────────────────────────────────────────────────
