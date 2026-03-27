@@ -120,20 +120,20 @@ if is_new_day
     trade_taken := false
 
 // ─── Entry Conditions ─────────────────────────────────────────────────────────
-can_enter = in_session and not trade_taken and
-            not na(fb_high) and not na(fb_low) and
-            not na(prev_day_high) and not na(prev_day_low) and
-            not na(atr) and atr > 0
+can_enter = (in_session and not trade_taken
+            and not na(fb_high) and not na(fb_low)
+            and not na(prev_day_high) and not na(prev_day_low)
+            and not na(atr) and atr > 0)
 
-long_signal  = can_enter and
-               ta.crossover(close, fb_high) and
-               prev_day_high > fb_high and
-               pdl_confirmed
+long_signal  = (can_enter
+               and ta.crossover(close, fb_high)
+               and prev_day_high > fb_high
+               and pdl_confirmed)
 
-short_signal = can_enter and
-               ta.crossunder(close, fb_low) and
-               prev_day_low < fb_low and
-               pdh_confirmed
+short_signal = (can_enter
+               and ta.crossunder(close, fb_low)
+               and prev_day_low < fb_low
+               and pdh_confirmed)
 
 if long_signal or short_signal
     trade_taken := true
