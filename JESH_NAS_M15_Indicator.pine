@@ -1,0 +1,280 @@
+// =============================================================================
+// JESH NAS M15 — Signal Indicator
+// =============================================================================
+// Clean indicator version of the backtested strategy logic.
+// Same core logic that produced 16-year results. No clutter.
+//
+// Signals fire when:
+//   LONG  — 15m close crosses above first bar high + PDL swept + PDH > first bar high
+//   SHORT — 15m close crosses below first bar low  + PDH swept + PDL < first bar low
+//
+// Entry on 15-minute candle close.
+// =============================================================================
+
+//@version=6
+indicator("JESH NAS M15", overlay=true, max_lines_count=200, max_boxes_count=100, max_labels_count=200)
+
+// ─── Account Input ────────────────────────────────────────────────────────────
+account_size = input.int(10000, "Account Size ($)", minval=100, step=500, group="Settings")
+
+// ─── Colors — Monochrome Dark Premium ────────────────────────────────────────
+col_long       = color.new(#E8E8E8, 0)     // near-white for long
+col_short      = color.new(#888888, 0)     // mid-grey for short
+col_pdh        = color.new(#AAAAAA, 55)    // subtle grey — PDH
+col_pdl        = color.new(#AAAAAA, 55)    // subtle grey — PDL
+col_fb_high    = color.new(#FFFFFF, 65)    // faint white — first bar high
+col_fb_low     = color.new(#FFFFFF, 65)    // faint white — first bar low
+col_box_long   = color.new(#D0D0D0, 82)   // very subtle light fill — long box
+col_box_short  = color.new(#888888, 82)   // very subtle grey fill  — short box
+col_sl_box     = color.new(#555555, 88)   // near-invisible SL zone
+col_label_bg   = color.new(#1A1A1A, 5)    // near-black label background
+col_label_txt  = color.new(#E8E8E8, 0)    // near-white label text
+
+// ─── Session & Timezone ───────────────────────────────────────────────────────
+NY             = "America/New_York"
+ny_session     = "0930-1600"
+in_ny          = not na(time(timeframe.period, ny_session, NY))
+first_bar      = in_ny and not in_ny[1]
+newDay         = (dayofweek != dayofweek[1] or dayofmonth != dayofmonth[1]) and dayofweek != dayofweek.sunday
+
+// ─── ATR ─────────────────────────────────────────────────────────────────────
+atr_len        = 14
+atr            = ta.atr(atr_len)
+
+// ─── Previous Day High / Low ──────────────────────────────────────────────────
+var float prev_day_high   = na
+var float prev_day_low    = na
+var float day_high_track  = na
+var float day_low_track   = na
+var int   day_start_bar   = 0
+var int   prev_start_bar  = na
+var int   prev_end_bar    = na
+
+if newDay
+    prev_end_bar   := bar_index - 1
+    prev_start_bar := day_start_bar
+    day_start_bar  := bar_index
+
+    if not na(prev_start_bar) and prev_end_bar > prev_start_bar
+        float dh = high[bar_index - prev_start_bar]
+        float dl = low [bar_index - prev_start_bar]
+        for i = prev_start_bar to prev_end_bar
+            bi = bar_index - i
+            if bi >= 0
+                if high[bi] > dh
+                    dh := high[bi]
+                if low[bi]  < dl
+                    dl := low[bi]
+        prev_day_high := dh
+        prev_day_low  := dl
+
+// ─── PDH / PDL Lines (drawn fresh each day) ───────────────────────────────────
+var line pdh_line = na
+var line pdl_line = na
+
+if newDay and not na(prev_day_high)
+    if not na(pdh_line)
+        line.delete(pdh_line)
+    if not na(pdl_line)
+        line.delete(pdl_line)
+    pdh_line := line.new(bar_index, prev_day_high, bar_index + 1, prev_day_high,
+         extend=extend.right, color=col_pdh, width=1, style=line.style_dashed)
+    pdl_line := line.new(bar_index, prev_day_low,  bar_index + 1, prev_day_low,
+         extend=extend.right, color=col_pdl, width=1, style=line.style_dashed)
+
+// PDH/PDL labels (right edge, update each bar)
+if barstate.islast and not na(prev_day_high)
+    label.new(bar_index + 2, prev_day_high, "PDH",
+         style=label.style_label_left, color=color.new(#1A1A1A,100),
+         textcolor=col_pdh, size=size.tiny)
+    label.new(bar_index + 2, prev_day_low, "PDL",
+         style=label.style_label_left, color=color.new(#1A1A1A,100),
+         textcolor=col_pdl, size=size.tiny)
+
+// ─── First Bar of Session ─────────────────────────────────────────────────────
+var float fb_high = na
+var float fb_low  = na
+
+if first_bar
+    fb_high := high
+    fb_low  := low
+
+// First bar lines
+var line fb_high_line = na
+var line fb_low_line  = na
+
+if first_bar
+    if not na(fb_high_line)
+        line.delete(fb_high_line)
+    if not na(fb_low_line)
+        line.delete(fb_low_line)
+    fb_high_line := line.new(bar_index, fb_high, bar_index + 1, fb_high,
+         extend=extend.right, color=col_fb_high, width=1, style=line.style_dotted)
+    fb_low_line  := line.new(bar_index, fb_low,  bar_index + 1, fb_low,
+         extend=extend.right, color=col_fb_low,  width=1, style=line.style_dotted)
+
+// ─── Sweep Detection ──────────────────────────────────────────────────────────
+var bool pdh_swept     = false
+var bool pdl_swept     = false
+var bool pdh_confirmed = false
+var bool pdl_confirmed = false
+var float tracked_pdh  = na
+var float tracked_pdl  = na
+
+// Sync tracked levels when prev day updates
+if not na(prev_day_high) and tracked_pdh != prev_day_high
+    tracked_pdh   := prev_day_high
+    pdh_swept     := false
+    pdh_confirmed := false
+
+if not na(prev_day_low) and tracked_pdl != prev_day_low
+    tracked_pdl   := prev_day_low
+    pdl_swept     := false
+    pdl_confirmed := false
+
+// Reset on new day
+if newDay
+    pdh_swept     := false
+    pdl_swept     := false
+    pdh_confirmed := false
+    pdl_confirmed := false
+
+// Reset at session open
+if first_bar
+    pdh_swept     := false
+    pdl_swept     := false
+    pdh_confirmed := false
+    pdl_confirmed := false
+
+// Detect sweep
+if not na(tracked_pdh) and not pdh_swept and high > tracked_pdh
+    pdh_swept := true
+if not na(tracked_pdl) and not pdl_swept and low  < tracked_pdl
+    pdl_swept := true
+
+// Confirm on next bar
+if pdh_swept[1] and not pdh_confirmed
+    pdh_confirmed := true
+if pdl_swept[1] and not pdl_confirmed
+    pdl_confirmed := true
+
+// ─── Entry Conditions ─────────────────────────────────────────────────────────
+var bool trade_today  = false
+var bool long_today   = false
+var bool short_today  = false
+
+if first_bar
+    trade_today := false
+    long_today  := false
+    short_today := false
+
+in_session = not na(time(timeframe.period, "0930-1130", NY))
+
+long_signal  = in_session and not trade_today and not long_today and
+               not na(fb_high) and not na(prev_day_high) and
+               ta.crossover(close, fb_high) and
+               prev_day_high > fb_high and
+               pdl_confirmed
+
+short_signal = in_session and not trade_today and not short_today and
+               not na(fb_low) and not na(prev_day_low) and
+               ta.crossunder(close, fb_low) and
+               prev_day_low < fb_low and
+               pdh_confirmed
+
+if long_signal
+    trade_today := true
+    long_today  := true
+
+if short_signal
+    trade_today := true
+    short_today := true
+
+// ─── Position Sizing (display only) ──────────────────────────────────────────
+// Risk = 1% of account (challenge/prop default)
+// Qty shown is indicative based on SL distance
+risk_amt     = account_size * 0.01   // 1% default
+sl_dist_long  = long_signal  ? math.max(close - fb_low,  atr * 0.25) : na
+sl_dist_short = short_signal ? math.max(fb_high - close, atr * 0.25) : na
+qty_long      = long_signal  ? math.max(1, math.round(risk_amt / sl_dist_long))  : na
+qty_short     = short_signal ? math.max(1, math.round(risk_amt / sl_dist_short)) : na
+
+// ─── TP Levels ────────────────────────────────────────────────────────────────
+// SL distance from entry used for 1R / 2R / 3R
+float entry_l  = long_signal  ? close : na
+float entry_s  = short_signal ? close : na
+
+float sl_l     = long_signal  ? fb_low  : na
+float sl_s     = short_signal ? fb_high : na
+
+float r_l      = long_signal  ? (entry_l - sl_l) : na
+float r_s      = short_signal ? (sl_s - entry_s) : na
+
+float tp1_l    = long_signal  ? entry_l + r_l : na
+float tp2_l    = long_signal  ? entry_l + r_l * 2 : na
+float tp3_l    = long_signal  ? entry_l + r_l * 3 : na
+
+float tp1_s    = short_signal ? entry_s - r_s : na
+float tp2_s    = short_signal ? entry_s - r_s * 2 : na
+float tp3_s    = short_signal ? entry_s - r_s * 3 : na
+
+// ─── Trade Zone Box ───────────────────────────────────────────────────────────
+// Long box: entry → TP2 (profit zone) + entry → SL (risk zone)
+if long_signal
+    // Profit zone box
+    box.new(bar_index, tp2_l, bar_index + 40, entry_l,
+         bgcolor=col_box_long, border_color=color.new(#CCCCCC, 60), border_width=1)
+    // SL zone box
+    box.new(bar_index, entry_l, bar_index + 40, sl_l,
+         bgcolor=col_sl_box, border_color=color.new(#666666, 70), border_width=1)
+
+if short_signal
+    // Profit zone box
+    box.new(bar_index, entry_s, bar_index + 40, tp2_s,
+         bgcolor=col_box_short, border_color=color.new(#AAAAAA, 60), border_width=1)
+    // SL zone box
+    box.new(bar_index, sl_s, bar_index + 40, entry_s,
+         bgcolor=col_sl_box, border_color=color.new(#666666, 70), border_width=1)
+
+// ─── Info Label ───────────────────────────────────────────────────────────────
+if long_signal
+    lbl_txt = "▲ LONG MNQ\n" +
+              "─────────────────\n" +
+              "Entry  : " + str.tostring(entry_l,  "#.00") + "\n" +
+              "SL     : " + str.tostring(sl_l,     "#.00") + "  (−" + str.tostring(math.round(r_l, 1), "#.0") + " pts)\n" +
+              "TP 1R  : " + str.tostring(tp1_l,    "#.00") + "  (+" + str.tostring(math.round(r_l, 1), "#.0") + " pts)\n" +
+              "TP 2R  : " + str.tostring(tp2_l,    "#.00") + "  (+" + str.tostring(math.round(r_l * 2, 1), "#.0") + " pts)\n" +
+              "TP 3R  : " + str.tostring(tp3_l,    "#.00") + "  (+" + str.tostring(math.round(r_l * 3, 1), "#.0") + " pts)\n" +
+              "Risk   : $" + str.tostring(math.round(risk_amt)) + "  |  Qty: " + str.tostring(math.max(1, math.round(risk_amt / (entry_l - sl_l))))
+    label.new(bar_index + 2, math.avg(entry_l, tp2_l), lbl_txt,
+         style=label.style_label_left,
+         color=col_label_bg,
+         textcolor=col_label_txt,
+         size=size.small)
+
+if short_signal
+    lbl_txt = "▼ SHORT MNQ\n" +
+              "─────────────────\n" +
+              "Entry  : " + str.tostring(entry_s,  "#.00") + "\n" +
+              "SL     : " + str.tostring(sl_s,     "#.00") + "  (+" + str.tostring(math.round(r_s, 1), "#.0") + " pts)\n" +
+              "TP 1R  : " + str.tostring(tp1_s,    "#.00") + "  (−" + str.tostring(math.round(r_s, 1), "#.0") + " pts)\n" +
+              "TP 2R  : " + str.tostring(tp2_s,    "#.00") + "  (−" + str.tostring(math.round(r_s * 2, 1), "#.0") + " pts)\n" +
+              "TP 3R  : " + str.tostring(tp3_s,    "#.00") + "  (−" + str.tostring(math.round(r_s * 3, 1), "#.0") + " pts)\n" +
+              "Risk   : $" + str.tostring(math.round(risk_amt)) + "  |  Qty: " + str.tostring(math.max(1, math.round(risk_amt / (sl_s - entry_s))))
+    label.new(bar_index + 2, math.avg(entry_s, tp2_s), lbl_txt,
+         style=label.style_label_left,
+         color=col_label_bg,
+         textcolor=col_label_txt,
+         size=size.small)
+
+// ─── Triangle Signals ─────────────────────────────────────────────────────────
+plotshape(long_signal,  "Long Signal",  shape.triangleup,   location.belowbar, col_long,  size=size.small)
+plotshape(short_signal, "Short Signal", shape.triangledown, location.abovebar, col_short, size=size.small)
+
+// ─── Sweep Dots (subtle) ──────────────────────────────────────────────────────
+plotshape(not pdh_swept[1] and pdh_swept, "PDH Swept", shape.circle, location.abovebar, color.new(#888888, 40), size=size.tiny)
+plotshape(not pdl_swept[1] and pdl_swept, "PDL Swept", shape.circle, location.belowbar, color.new(#888888, 40), size=size.tiny)
+
+// ─── Session Background (very subtle) ────────────────────────────────────────
+bgcolor(in_session ? color.new(#FFFFFF, 97) : na, title="Session")
+
