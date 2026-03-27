@@ -35,6 +35,11 @@ TIMEFRAME           = "15m"         # 15-minute candles
 DATA_START          = "2026-01-26"   # Yahoo free tier: 15m limited to last 60 days
 DATA_END            = "2026-03-26"
 
+# ─── Prop Firm Risk Rules ─────────────────────────────────────────────────────
+# Circuit breakers — trading halts if these are breached
+DAILY_LOSS_LIMIT_PCT  = 0.05    # 5%  daily loss limit  → $500 on $10k account
+MAX_DRAWDOWN_PCT      = 0.10    # 10% max drawdown limit → $1,000 on $10k account
+
 # ─── Output Settings ─────────────────────────────────────────────────────────
 OUTPUT_DIR          = "results"     # Folder where results are saved
 SAVE_TRADE_LOG      = True

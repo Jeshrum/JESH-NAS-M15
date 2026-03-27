@@ -47,29 +47,35 @@ def load_tradingview_csv(filepath: str) -> pd.DataFrame:
             "  → Or set TV_CSV_FILE = None in data_feed.py to use Yahoo Finance"
         )
 
-    df = pd.read_csv(filepath)
+    # Peek at the first data row to detect if timestamps are tz-aware
+    with open(filepath, "r") as _f:
+        _header = _f.readline()
+        _first  = _f.readline().strip()
 
-    # Normalise column names
+    # Detect time column name
+    _cols = [c.strip().lower() for c in _header.split(",")]
+    _time_col = next((c for c in _cols if c in ["time", "datetime", "date", "timestamp"]), None)
+    if _time_col is None:
+        raise ValueError(f"[ERROR] Could not find datetime column. Columns found: {_cols}")
+
+    # Detect if first timestamp has tz offset (e.g. "-05:00" or "+00:00")
+    _first_val = _first.split(",")[_cols.index(_time_col)]
+    _has_tz = "+" in _first_val[10:] or (_first_val.count("-") > 2)
+
+    if _has_tz:
+        df = pd.read_csv(filepath, index_col=_time_col,
+                         parse_dates=True)
+        df.index = pd.to_datetime(df.index, utc=True)
+    else:
+        df = pd.read_csv(filepath, index_col=_time_col,
+                         parse_dates=True)
+
     df.columns = [c.strip().lower() for c in df.columns]
-
-    # TradingView uses 'time' as the datetime column
-    time_col = None
-    for candidate in ["time", "datetime", "date", "timestamp"]:
-        if candidate in df.columns:
-            time_col = candidate
-            break
-    if time_col is None:
-        raise ValueError(f"[ERROR] Could not find datetime column. Columns found: {list(df.columns)}")
-
-    # Parse datetime — handle both space-separated and ISO formats
-    df[time_col] = pd.to_datetime(df[time_col], infer_datetime_format=True)
-    df = df.set_index(time_col)
     df.index.name = "datetime"
 
-    # Localise to NY time if not already timezone-aware
+    # Localise to NY time
     tz = pytz.timezone(TIMEZONE)
     if df.index.tz is None:
-        # TradingView default export is UTC — convert to NY
         try:
             df.index = df.index.tz_localize("UTC").tz_convert(tz)
             print(f"[DATA] Timestamps localised: UTC → {TIMEZONE}")

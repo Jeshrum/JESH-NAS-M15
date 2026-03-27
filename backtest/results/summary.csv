@@ -1,2 +1,2 @@
 initial_capital,final_balance,net_profit,net_profit_pct,total_trades,winning_trades,losing_trades,win_rate,profit_factor,avg_win,avg_loss,avg_rr,max_drawdown_pct,sharpe_ratio,risk_mode
-10000,8962.89,-1037.11,-10.37,11,5,6,45.45,0.815,236.07,-241.42,0.98,-16.88,-1.643,normal
+10000,139213.38,129213.38,1292.13,1564,692,872,44.25,1.962,513.25,-207.63,2.47,-40.24,0.768,normal

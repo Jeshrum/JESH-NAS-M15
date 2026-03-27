@@ -1,0 +1,11 @@
+# Data files (too large for git)
+backtest/NAS100_15m.csv
+backtest/histdata_raw/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store

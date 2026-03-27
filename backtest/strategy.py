@@ -22,7 +22,8 @@ import pytz
 from config import (
     SESSION_START, SESSION_END, FORCE_CLOSE_TIME, TIMEZONE,
     ATR_LENGTH, LIMIT_ATR_IMPROVEMENT, TP_ATR_REDUCTION,
-    INITIAL_CAPITAL, COMMISSION_PER_SIDE, RISK_MODES, RISK_MODE
+    INITIAL_CAPITAL, COMMISSION_PER_SIDE, RISK_MODES, RISK_MODE,
+    DAILY_LOSS_LIMIT_PCT, MAX_DRAWDOWN_PCT
 )
 
 
@@ -81,6 +82,11 @@ def run_strategy(df: pd.DataFrame) -> dict:
     risk_pct    = RISK_MODES[RISK_MODE]
     balance     = INITIAL_CAPITAL
 
+    # ── Prop firm circuit breaker limits ────────────────────────────────────
+    daily_loss_limit  = INITIAL_CAPITAL * DAILY_LOSS_LIMIT_PCT   # e.g. $500 on $10k
+    max_dd_limit      = INITIAL_CAPITAL * MAX_DRAWDOWN_PCT        # e.g. $1000 on $10k
+    account_blown     = False   # True = prop firm rules triggered, stop all trading
+
     # ── Parse session times ─────────────────────────────────────────────────
     sess_start_h, sess_start_m = map(int, SESSION_START.split(":"))
     sess_end_h,   sess_end_m   = map(int, SESSION_END.split(":"))
@@ -90,6 +96,7 @@ def run_strategy(df: pd.DataFrame) -> dict:
     trades:         list[Trade]  = []
     equity_curve:   list[dict]   = []
 
+    day_start_balance   = INITIAL_CAPITAL   # balance at start of each trading day
     current_date        = None
     first_bar_high      = None
     first_bar_low       = None
@@ -138,6 +145,12 @@ def run_strategy(df: pd.DataFrame) -> dict:
             pdl_swept_confirmed = False
             trade_taken_today   = False
             prev_close          = None
+            day_start_balance   = balance   # snapshot balance at start of day
+
+            # Reset daily circuit breaker (max-DD suspension is permanent)
+            total_loss_now = balance - INITIAL_CAPITAL
+            if account_blown and total_loss_now > -max_dd_limit:
+                account_blown = False   # daily loss limit — resets next day
 
         # Track current day bars
         current_day_bars.append({"high": h, "low": l, "close": c, "ts": ts})
@@ -232,11 +245,26 @@ def run_strategy(df: pd.DataFrame) -> dict:
                 active_trade = None
 
         # ── Entry conditions ─────────────────────────────────────────────────
+        # ── Prop firm circuit breaker checks ────────────────────────────────
+        daily_pnl  = balance - day_start_balance
+        total_loss = balance - INITIAL_CAPITAL
+
+        if not account_blown:
+            if daily_pnl  <= -daily_loss_limit:
+                account_blown = True
+                print(f"[CIRCUIT BREAKER] Daily loss limit hit on {bar_date} "
+                      f"(daily P&L: ${daily_pnl:+,.2f}). No more trades today.")
+            elif total_loss <= -max_dd_limit:
+                account_blown = True
+                print(f"[CIRCUIT BREAKER] Max drawdown limit hit on {bar_date} "
+                      f"(total loss: ${total_loss:+,.2f}). Account suspended.")
+
         can_enter = (
             in_session and
             not trade_taken_today and
             active_trade is None and
             not past_force_close and
+            not account_blown and
             first_bar_high is not None and
             first_bar_low  is not None and
             prev_day_high  is not None and
@@ -268,9 +296,10 @@ def run_strategy(df: pd.DataFrame) -> dict:
                 tp_price    = prev_day_high - (atr * TP_ATR_REDUCTION)
 
                 sl_dist     = entry_price - sl_price
-                if sl_dist > 0 and tp_price > entry_price:
-                    risk_amount = balance * risk_pct
-                    qty         = max(1, round(risk_amount / sl_dist))
+                min_sl_dist = atr * 0.25          # SL must be at least 0.25 ATR
+                if sl_dist > 0 and sl_dist >= min_sl_dist and tp_price > entry_price:
+                    risk_amount = INITIAL_CAPITAL * risk_pct   # fixed sizing on base capital
+                    qty         = min(max(1, round(risk_amount / sl_dist)), 500)  # hard cap 500 contracts
                     commission  = COMMISSION_PER_SIDE * qty * 2
 
                     active_trade = Trade(
@@ -291,9 +320,10 @@ def run_strategy(df: pd.DataFrame) -> dict:
                 tp_price    = prev_day_low + (atr * TP_ATR_REDUCTION)
 
                 sl_dist     = sl_price - entry_price
-                if sl_dist > 0 and tp_price < entry_price:
-                    risk_amount = balance * risk_pct
-                    qty         = max(1, round(risk_amount / sl_dist))
+                min_sl_dist = atr * 0.25          # SL must be at least 0.25 ATR
+                if sl_dist > 0 and sl_dist >= min_sl_dist and tp_price < entry_price:
+                    risk_amount = INITIAL_CAPITAL * risk_pct   # fixed sizing on base capital
+                    qty         = min(max(1, round(risk_amount / sl_dist)), 500)  # hard cap 500 contracts
                     commission  = COMMISSION_PER_SIDE * qty * 2
 
                     active_trade = Trade(

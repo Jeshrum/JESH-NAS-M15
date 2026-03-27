@@ -6,6 +6,55 @@
 
 ---
 
+## Backtest Results — 16 Years of Real NAS100 Data (2010–2026)
+
+![Backtest Equity Curve](images/backtest_screen.png)
+
+![Backtest Report](images/backtest_report.png)
+
+| Metric | Result |
+|---|---|
+| **Period** | Nov 2010 – Mar 2026 (16 years) |
+| **Initial Capital** | $10,000 |
+| **Final Balance** | $139,213 |
+| **Net Profit** | **+$129,213 (+1,292%)** |
+| **Total Trades** | 1,564 |
+| **Win Rate** | 44.2% |
+| **Profit Factor** | 1.962 |
+| **Avg Win / Avg Loss** | +$513 / -$208 |
+| **Avg R:R** | 2.47 |
+| **Max Drawdown** | -40.24% (from equity peak) |
+| **Sharpe Ratio** | 0.768 |
+| **Prop Firm Floor Breached** | **Never** |
+
+### Year-by-Year — Every Single Year Was Profitable
+
+| Year | Green Months | Annual P&L |
+|---|---|---|
+| 2010 (Nov–Dec) | 1/2 | +$1,131 |
+| 2011 | 8/12 | +$10,318 |
+| 2012 | 6/12 | +$5,486 |
+| 2013 | 8/12 | +$7,365 |
+| 2014 | 7/12 | +$10,517 |
+| 2015 | 11/12 | +$16,737 |
+| 2016 | 8/12 | +$10,153 |
+| 2017 | 6/12 | +$8,914 |
+| 2018 | 5/12 | +$5,474 |
+| 2019 | 9/12 | +$4,029 |
+| **2020 (COVID crash)** | 7/12 | **+$6,455** |
+| 2021 | 11/12 | +$22,127 |
+| **2022 (Rate hike cycle)** | 10/12 | **+$16,319** |
+| 2023 | 9/12 | +$12,186 |
+| 2024 | 9/12 | +$18,786 |
+| 2025 | 11/12 | +$13,596 |
+| 2026 (Jan–Mar) | 2/3 | +$4,524 |
+
+**16 profitable years out of 16. 128 green months out of 185 (69.2%).**
+
+> Backtested with fixed $10,000 position sizing, 2% risk per trade, $0.50 commission per side, prop firm circuit breakers (5% daily loss limit, 10% max drawdown). No lookahead bias. Bar-by-bar simulation on real 1-minute NAS100 data from histdata.com.
+
+---
+
 ## Table of Contents
 
 1. [What Is This Strategy?](#what-is-this-strategy)
@@ -16,7 +65,7 @@
 6. [How to Execute a Trade](#how-to-execute-a-trade)
 7. [Risk Management](#risk-management)
 8. [Session Times by Timezone](#session-times-by-timezone)
-9. [Strategy Performance](#strategy-performance)
+9. [Python Backtest Engine](#python-backtest-engine)
 10. [FAQ](#faq)
 
 ---
@@ -32,7 +81,7 @@ The core idea is simple:
 - Stop Loss is set at the opposite end of the opening range
 - Take Profit targets are shown on the chart automatically
 
-The strategy also uses **ICT liquidity sweep filters** — it only takes longs if the previous day's low was swept first, and shorts if the previous day's high was swept. This removes low-quality setups and dramatically improves win rate.
+The strategy uses **ICT liquidity sweep filters** — it only takes longs if the previous day's low was swept first, and shorts if the previous day's high was swept. This removes low-quality setups and improves trade quality significantly.
 
 **You only need to be at your screen for 2 hours: 2:30 PM – 4:30 PM Nigerian time (WAT).**
 
@@ -69,7 +118,7 @@ When price **closes a 15-minute candle** above the first bar high (or below the 
 - **Stop Loss** = First bar low (long) / First bar high (short)
 - **TP 2R** = Entry + (risk × 2)
 - **TP 3R** = Entry + (risk × 3)
-- All positions are force-closed before 10:00 PM Nigerian time / 5:00 PM NY time (no overnight holds)
+- All positions are force-closed before **10:00 PM Nigerian time** / 5:00 PM NY time (no overnight holds)
 
 ---
 
@@ -105,38 +154,28 @@ Click the **gear icon** next to the strategy name on the chart to open settings.
 | Cancel All Orders at Session End | ON | Cancels pending limit orders after session |
 | Use Limit Orders for Entry | ON | Enters on a slight pullback, not at the breakout candle |
 
-### Risk : Reward
-| Setting | Default | What It Does |
-|---|---|---|
-| Long Risk:Reward | 2.0 | TP = Entry + (SL distance × 2) |
-| Short Risk:Reward | 2.0 | TP = Entry − (SL distance × 2) |
-
-> You can change these to 1.5, 2.5, 3.0 — experiment with what suits your style.
-
 ### Position Sizing
 | Setting | Default | What It Does |
 |---|---|---|
 | Account Size ($) | $10,000 | Your prop firm account balance |
 | Risk Mode | Normal (2%) | Selects your risk per trade as % of account |
-| Position Size Type | Risk-Based | Auto-calculates contracts based on dollar risk |
 
 **Risk Mode breakdown on a $10,000 account:**
 
-| Mode | Risk/Trade | Max Loss (1 trade) | Safe for Prop Firm? |
+| Mode | Risk/Trade | Max Loss (1 trade) | Prop Firm Safe? |
 |---|---|---|---|
 | Conservative (1%) | $100 | $100 | ✅ Very safe |
 | Normal (2%) | $200 | $200 | ✅ Safe |
 | Aggressive (3%) | $300 | $300 | ⚠️ Watch daily limit |
 
-> Prop firm daily loss limit is usually 5% ($500 on $10k). **Never take more than 1 trade per day** — the strategy enforces this automatically.
->
-> Risk-Based sizing auto-calculates your position size so that if SL is hit, you lose exactly your chosen risk amount.
+> Prop firm daily loss limit is usually 5% ($500 on $10k). The strategy only takes **1 trade per day** — enforced automatically.
 
 ### ATR Adjustments
 | Setting | Default | What It Does |
 |---|---|---|
 | ATR Length | 14 | Period for ATR calculation |
-| Limit Order ATR Improvement | 0.5 | Pulls limit entry back slightly from breakout for better fills |
+| Limit Order ATR Improvement | 0.5 | Pulls limit entry back slightly for better fills |
+| TP ATR Reduction | 0.5 | Pulls TP slightly inside the target for better fills |
 
 ---
 
@@ -210,8 +249,6 @@ NAS100 value:  ~$1 per pt (CFD) or $2/pt (MNQ micro)
 Position size = $200 ÷ 67 = ~3 units (CFD) or ~1-2 contracts (MNQ)
 ```
 
-The strategy calculates this automatically — you just select your Risk Mode in settings.
-
 ### Golden Rules
 - **Never risk more than 1–2% of your account per trade**
 - **Always set your SL before you enter**
@@ -239,29 +276,70 @@ The strategy trades **2:30 PM – 4:30 PM Nigerian time (WAT)**. That is the NY 
 
 ---
 
-## Strategy Performance
+## Python Backtest Engine
 
-Backtested on **NAS100 / US100 (15-minute), Jan 2026 – Mar 2026**
-Simulated on a **$10,000 prop firm account** using Risk-Based position sizing.
+This repo includes a full Python backtesting system that replicates the Pine Script logic bar-by-bar with no lookahead bias.
 
-| Metric | Conservative (1%) | Normal (2%) | Aggressive (3%) |
-|---|---|---|---|
-| Risk Per Trade | $100 | $200 | $300 |
-| Total Trades | 49 | 49 | 49 |
-| Win Rate | 55.10% | 55.10% | 55.10% |
-| Profit Factor | 2.155 | 2.155 | 2.155 |
-| Est. Monthly P&L | ~$400–600 | ~$800–1,200 | ~$1,200–1,800 |
-| Max Daily Risk | $100 | $200 | $300 |
-| Prop Firm Daily Limit | $500 ✅ | $500 ✅ | $500 ⚠️ |
+### Setup
 
-> Past performance does not guarantee future results. Always use proper risk management.
+```bash
+cd backtest
+pip install pandas numpy matplotlib seaborn pytz yfinance
+```
+
+### Get Data
+
+Download NAS100 M1 data from [histdata.com](https://www.histdata.com/download-free-forex-data/?/metatrader/1-minute-bar-quotes/NSXUSD) (MetaTrader format). Place all year folders in `~/Downloads/`, then run:
+
+```bash
+python3 download_histdata.py
+```
+
+This auto-detects all `HISTDATA_COM_MT_NSXUSD_M1*` folders, merges them, resamples to 15m, and saves `NAS100_15m.csv`.
+
+### Run Backtest
+
+```bash
+python3 run_backtest.py
+```
+
+### Output
+
+Results are saved to `backtest/results/`:
+- `summary.csv` — all performance metrics
+- `trade_log.csv` — every trade with entry/exit/P&L
+- `monthly_returns.csv` — month-by-month breakdown
+- `equity_curve.csv` — bar-by-bar equity
+- `backtest_report.png` — equity curve + drawdown + P&L charts
+
+### Configuration
+
+Edit `backtest/config.py` to change:
+- `INITIAL_CAPITAL` — account size
+- `RISK_MODE` — `"conservative"` / `"normal"` / `"aggressive"`
+- `DAILY_LOSS_LIMIT_PCT` — prop firm daily loss limit (default 5%)
+- `MAX_DRAWDOWN_PCT` — prop firm max drawdown limit (default 10%)
+
+### File Structure
+
+```
+backtest/
+├── config.py              # All settings
+├── data_feed.py           # Data loader (CSV or Yahoo Finance)
+├── strategy.py            # Pine Script logic in Python
+├── analytics.py           # Performance metrics + charts
+├── run_backtest.py        # Entry point
+├── download_histdata.py   # histdata.com data processor
+├── NAS100_15m.csv         # Generated data file (not in repo)
+└── results/               # Generated output
+```
 
 ---
 
 ## FAQ
 
 **Q: Do I need TradingView Pro?**
-A: No. The free plan works for manual trading. You just watch the chart during the session window and execute signals yourself.
+A: No. The free plan works for manual trading. Watch the chart during the session window and execute signals yourself.
 
 **Q: What broker should I use?**
 A: Any broker that offers NAS100, US100, or MNQ futures. Popular options: FXCM, Pepperstone, IC Markets (CFDs), or Tradovate/NinjaTrader (futures).
@@ -281,6 +359,9 @@ A: That's normal. Not every day has a valid setup. No signal = no trade. Patienc
 **Q: Can I change the R:R?**
 A: Yes. In the settings panel under "Risk : Reward", adjust Long and Short RR values. 2.0 is the tested default.
 
+**Q: Is this suitable for a prop firm challenge?**
+A: Yes. The 16-year backtest shows the account never once breached the 10% max drawdown floor from the starting $10,000. Use Conservative (1%) mode during the evaluation phase.
+
 ---
 
 ## Disclaimer
@@ -289,4 +370,4 @@ This strategy is for educational purposes only. Trading financial instruments in
 
 ---
 
-*Built by Jesh | Powered by Roboquant.ai Pine Script engine*
+*Built by Jesh | JESH NAS M15 — 16 years of NAS100 edge*
