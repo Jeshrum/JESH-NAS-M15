@@ -2,6 +2,10 @@
 backtest/NAS100_15m.csv
 backtest/histdata_raw/
 
+# Large result CSVs (equity curve has 350k rows)
+backtest/results/equity_curve.csv
+backtest/results/trade_log.csv
+
 # Python cache
 __pycache__/
 *.pyc
