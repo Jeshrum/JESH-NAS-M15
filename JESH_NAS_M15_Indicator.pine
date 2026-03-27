@@ -1,51 +1,53 @@
 // =============================================================================
 // JESH NAS M15 — Signal Indicator
 // =============================================================================
-// Clean indicator version of the backtested strategy logic.
-// Same core logic that produced 16-year results. No clutter.
-//
-// Signals fire when:
-//   LONG  — 15m close crosses above first bar high + PDL swept today + PDH > first bar high
-//   SHORT — 15m close crosses below first bar low  + PDH swept today + PDL < first bar low
-//
+// Same core logic that produced 16-year backtest results.
 // Session: 9:30 AM – 11:30 AM New York time (2:30 PM – 4:30 PM WAT)
 // =============================================================================
 
 //@version=6
-indicator("JESH NAS M15", overlay=true, max_lines_count=500, max_boxes_count=200, max_labels_count=500)
+indicator("JESH NAS M15", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
 
-// ─── Account Input ────────────────────────────────────────────────────────────
+// ─── Input ────────────────────────────────────────────────────────────────────
 account_size = input.int(10000, "Account Size ($)", minval=100, step=500, group="Settings")
 
-// ─── Colors — Monochrome Dark Premium ────────────────────────────────────────
-col_long      = color.new(#E8E8E8, 0)
-col_short     = color.new(#888888, 0)
+// ─── Colors ───────────────────────────────────────────────────────────────────
+// Signal triangles — visible on any background
+col_long_tri  = color.new(#00C896, 0)    // clean teal-green triangle (pops on dark)
+col_short_tri = color.new(#FF6B6B, 0)    // clean coral-red triangle  (pops on dark)
+
+// Position tool zones
+col_profit_long  = color.new(#00C896, 80)   // green profit zone (long)
+col_profit_short = color.new(#FF6B6B, 80)   // red   profit zone (short)
+col_loss_zone    = color.new(#FF4444, 88)   // dark loss zone    (both)
+
+// Position tool lines
+col_entry  = color.new(#FFFFFF, 20)   // bright white entry line
+col_sl     = color.new(#FF4444, 10)   // red SL line
+col_tp1    = color.new(#AAFFDD, 20)   // soft green TP1 line
+col_tp2    = color.new(#00C896, 10)   // clean green TP2 line
+col_tp3    = color.new(#00FF99, 20)   // bright green TP3 line
+
+// Chart lines
 col_pdh       = color.new(#AAAAAA, 45)
 col_pdl       = color.new(#AAAAAA, 45)
 col_fb_high   = color.new(#FFFFFF, 60)
 col_fb_low    = color.new(#FFFFFF, 60)
-col_box_long  = color.new(#D0D0D0, 82)
-col_box_short = color.new(#888888, 82)
-col_sl_box    = color.new(#555555, 88)
+
+// Label
 col_label_bg  = color.new(#111111, 5)
 col_label_txt = color.new(#E8E8E8, 0)
 
-// ─── Timezone & Session ───────────────────────────────────────────────────────
-NY = "America/New_York"
-
-// Session window: 9:30–11:30 AM NY (2:30–4:30 PM WAT)
+// ─── Session ──────────────────────────────────────────────────────────────────
+NY         = "America/New_York"
 in_session = not na(time("15", "0930-1130", NY))
-
-// First bar of the session
 is_first_bar = in_session and not in_session[1]
+is_new_day   = dayofmonth != dayofmonth[1]
 
-// New calendar day (reliable method)
-is_new_day = not na(time("D")) and na(time("D")[1]) or dayofmonth != dayofmonth[1]
-
-// ─── ATR ─────────────────────────────────────────────────────────────────────
+// ─── ATR ──────────────────────────────────────────────────────────────────────
 atr = ta.atr(14)
 
-// ─── Previous Day High / Low — using request.security ─────────────────────────
+// ─── Previous Day High / Low ──────────────────────────────────────────────────
 [pdh_raw, pdl_raw] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead=barmerge.lookahead_off)
 prev_day_high = pdh_raw
 prev_day_low  = pdl_raw
@@ -62,7 +64,6 @@ if is_new_day and not na(prev_day_high)
     pdl_line := line.new(bar_index, prev_day_low, bar_index + 1, prev_day_low,
          extend=extend.right, color=col_pdl, width=1, style=line.style_dashed)
 
-// PDH/PDL labels at right edge
 if barstate.islast and not na(prev_day_high)
     label.new(bar_index + 2, prev_day_high, "PDH",
          style=label.style_label_left, color=color.new(#111111, 100),
@@ -71,20 +72,18 @@ if barstate.islast and not na(prev_day_high)
          style=label.style_label_left, color=color.new(#111111, 100),
          textcolor=col_pdl, size=size.tiny)
 
-// ─── First Bar High / Low ─────────────────────────────────────────────────────
+// ─── First Bar ────────────────────────────────────────────────────────────────
 var float fb_high = na
 var float fb_low  = na
+
+if is_new_day
+    fb_high := na
+    fb_low  := na
 
 if is_first_bar
     fb_high := high
     fb_low  := low
 
-// Reset first bar on new day
-if is_new_day
-    fb_high := na
-    fb_low  := na
-
-// First bar lines
 var line fb_high_line = na
 var line fb_low_line  = na
 
@@ -97,9 +96,6 @@ if is_first_bar
          extend=extend.right, color=col_fb_low, width=1, style=line.style_dotted)
 
 // ─── Sweep Detection ──────────────────────────────────────────────────────────
-// Sweep = price touched PDH/PDL at any point today before the signal
-// Confirmed = it happened on a prior bar (not the current one)
-
 var bool pdh_swept = false
 var bool pdl_swept = false
 
@@ -109,41 +105,40 @@ if is_new_day
 
 if not na(prev_day_high) and not pdh_swept and high > prev_day_high
     pdh_swept := true
-
-if not na(prev_day_low) and not pdl_swept and low < prev_day_low
+if not na(prev_day_low)  and not pdl_swept and low  < prev_day_low
     pdl_swept := true
 
-// Confirmed = swept on a PREVIOUS bar (pdh_swept was already true last bar)
 pdh_confirmed = pdh_swept[1]
 pdl_confirmed = pdl_swept[1]
 
-// Sweep dots
 plotshape(not pdh_swept[1] and pdh_swept, "PDH Swept", shape.circle, location.abovebar, color.new(#888888, 50), size=size.tiny)
 plotshape(not pdl_swept[1] and pdl_swept, "PDL Swept", shape.circle, location.belowbar, color.new(#888888, 50), size=size.tiny)
 
-// ─── One Trade Per Day Gate ────────────────────────────────────────────────────
+// ─── One Trade Per Day ────────────────────────────────────────────────────────
 var bool trade_taken = false
-
 if is_new_day
     trade_taken := false
 
 // ─── Entry Conditions ─────────────────────────────────────────────────────────
-can_enter = in_session and not trade_taken and not na(fb_high) and not na(fb_low) and not na(prev_day_high) and not na(prev_day_low) and not na(atr) and atr > 0
+can_enter = in_session and not trade_taken and
+            not na(fb_high) and not na(fb_low) and
+            not na(prev_day_high) and not na(prev_day_low) and
+            not na(atr) and atr > 0
 
-long_signal = can_enter and
-     ta.crossover(close, fb_high) and
-     prev_day_high > fb_high and
-     pdl_confirmed
+long_signal  = can_enter and
+               ta.crossover(close, fb_high) and
+               prev_day_high > fb_high and
+               pdl_confirmed
 
 short_signal = can_enter and
-     ta.crossunder(close, fb_low) and
-     prev_day_low < fb_low and
-     pdh_confirmed
+               ta.crossunder(close, fb_low) and
+               prev_day_low < fb_low and
+               pdh_confirmed
 
 if long_signal or short_signal
     trade_taken := true
 
-// ─── Levels on Signal ─────────────────────────────────────────────────────────
+// ─── Levels ───────────────────────────────────────────────────────────────────
 float entry_l = long_signal  ? close   : na
 float entry_s = short_signal ? close   : na
 float sl_l    = long_signal  ? fb_low  : na
@@ -160,52 +155,104 @@ float tp1_s = short_signal ? entry_s - r_s       : na
 float tp2_s = short_signal ? entry_s - r_s * 2.0 : na
 float tp3_s = short_signal ? entry_s - r_s * 3.0 : na
 
-// ─── Position Sizing (display) ────────────────────────────────────────────────
-risk_amt  = float(account_size) * 0.01
-qty_l     = long_signal  ? math.max(1, math.round(risk_amt / r_l)) : na
-qty_s     = short_signal ? math.max(1, math.round(risk_amt / r_s)) : na
+risk_amt = float(account_size) * 0.01
+qty_l    = long_signal  ? math.max(1, math.round(risk_amt / r_l)) : na
+qty_s    = short_signal ? math.max(1, math.round(risk_amt / r_s)) : na
 
-// ─── Trade Zone Boxes ─────────────────────────────────────────────────────────
+// ─── Position Tool Visual ─────────────────────────────────────────────────────
+// Mimics TradingView's built-in Long/Short Position tool.
+// Zones extend 40 bars to the right. Labeled lines for Entry, SL, TP1, TP2, TP3.
+
+box_right = bar_index + 40
+
 if long_signal
-    box.new(bar_index, tp2_l, bar_index + 40, entry_l,
-         bgcolor=col_box_long,  border_color=color.new(#CCCCCC, 55), border_width=1)
-    box.new(bar_index, entry_l, bar_index + 40, sl_l,
-         bgcolor=col_sl_box,    border_color=color.new(#666666, 65), border_width=1)
+    // ── Zones ──
+    // Loss zone: SL → Entry
+    box.new(bar_index, entry_l, box_right, sl_l,
+         bgcolor=col_loss_zone, border_color=color.new(#FF4444, 70), border_width=1)
+    // Profit zone: Entry → TP2
+    box.new(bar_index, tp2_l, box_right, entry_l,
+         bgcolor=col_profit_long, border_color=color.new(#00C896, 60), border_width=1)
+
+    // ── Lines ──
+    line.new(bar_index, entry_l, box_right, entry_l, color=col_entry, width=1, style=line.style_solid)
+    line.new(bar_index, sl_l,    box_right, sl_l,    color=col_sl,    width=1, style=line.style_solid)
+    line.new(bar_index, tp1_l,   box_right, tp1_l,   color=col_tp1,   width=1, style=line.style_dashed)
+    line.new(bar_index, tp2_l,   box_right, tp2_l,   color=col_tp2,   width=1, style=line.style_solid)
+    line.new(bar_index, tp3_l,   box_right, tp3_l,   color=col_tp3,   width=1, style=line.style_dashed)
+
+    // ── Price labels on lines ──
+    label.new(box_right, entry_l, "ENTRY " + str.tostring(entry_l, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_entry, size=size.tiny)
+    label.new(box_right, sl_l, "SL  " + str.tostring(sl_l, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_sl, size=size.tiny)
+    label.new(box_right, tp2_l, "TP2  " + str.tostring(tp2_l, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_tp2, size=size.tiny)
+    label.new(box_right, tp3_l, "TP3  " + str.tostring(tp3_l, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_tp3, size=size.tiny)
 
 if short_signal
-    box.new(bar_index, entry_s, bar_index + 40, tp2_s,
-         bgcolor=col_box_short, border_color=color.new(#AAAAAA, 55), border_width=1)
-    box.new(bar_index, sl_s,    bar_index + 40, entry_s,
-         bgcolor=col_sl_box,    border_color=color.new(#666666, 65), border_width=1)
+    // ── Zones ──
+    // Loss zone: Entry → SL
+    box.new(bar_index, sl_s, box_right, entry_s,
+         bgcolor=col_loss_zone, border_color=color.new(#FF4444, 70), border_width=1)
+    // Profit zone: TP2 → Entry
+    box.new(bar_index, entry_s, box_right, tp2_s,
+         bgcolor=col_profit_short, border_color=color.new(#FF6B6B, 60), border_width=1)
 
-// ─── Info Labels ──────────────────────────────────────────────────────────────
+    // ── Lines ──
+    line.new(bar_index, entry_s, box_right, entry_s, color=col_entry, width=1, style=line.style_solid)
+    line.new(bar_index, sl_s,    box_right, sl_s,    color=col_sl,    width=1, style=line.style_solid)
+    line.new(bar_index, tp1_s,   box_right, tp1_s,   color=col_tp1,   width=1, style=line.style_dashed)
+    line.new(bar_index, tp2_s,   box_right, tp2_s,   color=col_tp2,   width=1, style=line.style_solid)
+    line.new(bar_index, tp3_s,   box_right, tp3_s,   color=col_tp3,   width=1, style=line.style_dashed)
+
+    // ── Price labels on lines ──
+    label.new(box_right, entry_s, "ENTRY " + str.tostring(entry_s, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_entry, size=size.tiny)
+    label.new(box_right, sl_s, "SL  " + str.tostring(sl_s, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_sl, size=size.tiny)
+    label.new(box_right, tp2_s, "TP2  " + str.tostring(tp2_s, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_tp2, size=size.tiny)
+    label.new(box_right, tp3_s, "TP3  " + str.tostring(tp3_s, "#.00"),
+         style=label.style_label_left, color=color.new(#111111, 100),
+         textcolor=col_tp3, size=size.tiny)
+
+// ─── Signal Info Label ────────────────────────────────────────────────────────
 if long_signal
     lbl = "▲ LONG MNQ\n" +
           "─────────────────\n" +
           "Entry  : " + str.tostring(entry_l, "#.00") + "\n" +
-          "SL     : " + str.tostring(sl_l,    "#.00") + "  (−" + str.tostring(math.round(r_l, 1), "#.0") + " pts)\n" +
+          "SL     : " + str.tostring(sl_l,    "#.00") + "  (−" + str.tostring(math.round(r_l, 1),       "#.0") + " pts)\n" +
           "TP 1R  : " + str.tostring(tp1_l,   "#.00") + "  (+" + str.tostring(math.round(r_l,       1), "#.0") + " pts)\n" +
           "TP 2R  : " + str.tostring(tp2_l,   "#.00") + "  (+" + str.tostring(math.round(r_l * 2.0, 1), "#.0") + " pts)\n" +
           "TP 3R  : " + str.tostring(tp3_l,   "#.00") + "  (+" + str.tostring(math.round(r_l * 3.0, 1), "#.0") + " pts)\n" +
           "Risk $" + str.tostring(math.round(risk_amt)) + "  |  Qty " + str.tostring(qty_l)
-    label.new(bar_index + 2, math.avg(entry_l, tp2_l), lbl,
-         style=label.style_label_left, color=col_label_bg, textcolor=col_label_txt, size=size.small)
+    label.new(bar_index, tp3_l + r_l * 0.3, lbl,
+         style=label.style_label_down, color=col_label_bg, textcolor=col_label_txt, size=size.small)
 
 if short_signal
     lbl = "▼ SHORT MNQ\n" +
           "─────────────────\n" +
           "Entry  : " + str.tostring(entry_s, "#.00") + "\n" +
-          "SL     : " + str.tostring(sl_s,    "#.00") + "  (+" + str.tostring(math.round(r_s, 1), "#.0") + " pts)\n" +
+          "SL     : " + str.tostring(sl_s,    "#.00") + "  (+" + str.tostring(math.round(r_s, 1),       "#.0") + " pts)\n" +
           "TP 1R  : " + str.tostring(tp1_s,   "#.00") + "  (−" + str.tostring(math.round(r_s,       1), "#.0") + " pts)\n" +
           "TP 2R  : " + str.tostring(tp2_s,   "#.00") + "  (−" + str.tostring(math.round(r_s * 2.0, 1), "#.0") + " pts)\n" +
           "TP 3R  : " + str.tostring(tp3_s,   "#.00") + "  (−" + str.tostring(math.round(r_s * 3.0, 1), "#.0") + " pts)\n" +
           "Risk $" + str.tostring(math.round(risk_amt)) + "  |  Qty " + str.tostring(qty_s)
-    label.new(bar_index + 2, math.avg(entry_s, tp2_s), lbl,
-         style=label.style_label_left, color=col_label_bg, textcolor=col_label_txt, size=size.small)
+    label.new(bar_index, tp3_s - r_s * 0.3, lbl,
+         style=label.style_label_up, color=col_label_bg, textcolor=col_label_txt, size=size.small)
 
-// ─── Triangle Signals ─────────────────────────────────────────────────────────
-plotshape(long_signal,  "Long",  shape.triangleup,   location.belowbar, col_long,  size=size.small)
-plotshape(short_signal, "Short", shape.triangledown, location.abovebar, col_short, size=size.small)
+// ─── Triangle Signals (visible on dark charts) ────────────────────────────────
+plotshape(long_signal,  "Long",  shape.triangleup,   location.belowbar, col_long_tri,  size=size.normal)
+plotshape(short_signal, "Short", shape.triangledown, location.abovebar, col_short_tri, size=size.normal)
 
 // ─── Session Background ───────────────────────────────────────────────────────
 bgcolor(in_session ? color.new(#FFFFFF, 97) : na, title="NY Session")
