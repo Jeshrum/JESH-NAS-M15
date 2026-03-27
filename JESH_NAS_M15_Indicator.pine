@@ -18,35 +18,32 @@ _session_inf = input.string("9:30–11:30 AM New York (2:30–4:30 PM Lagos)", "
 _filter_inf  = input.string("PDH/PDL Sweep Required (built-in)", "Entry Filter", options=["PDH/PDL Sweep Required (built-in)"], group=g, tooltip="ICT concept: price must sweep the previous day high (for shorts) or low (for longs) before a signal fires.")
 _tp_info     = input.string("TP2 = 2R target | Force close 4:30 PM Lagos", "Take Profit", options=["TP2 = 2R target | Force close 4:30 PM Lagos"], group=g, tooltip="Set your TP at TP2R. The session ends at 4:30 PM Lagos — all positions must be closed by then.")
 
-// ─── ICT Color Palette ────────────────────────────────────────────────────────
-// Long = teal/aqua  |  Short = crimson/red  — standard ICT community palette
+// ─── Colors — matching TradingView Long/Short Position tool defaults ──────────
+// Long profit zone  = teal green  (same as TV built-in long tool)
+// Short profit zone = pink/red    (same as TV built-in short tool)
+// Loss zone         = grey        (same as TV built-in both)
 
-// Long colors
-c_long_bright  = #26A69A        // teal — triangles, entry line
-c_long_profit  = color.new(#26A69A, 85)  // teal fill — profit zone
-c_long_border  = color.new(#26A69A, 40)  // teal border
+c_long_profit  = color.new(#089981, 75)   // TV default long green
+c_long_border  = color.new(#089981, 30)
+c_long_line    = color.new(#089981, 0)
 
-// Short colors
-c_short_bright = #EF5350        // crimson — triangles, entry line
-c_short_profit = color.new(#EF5350, 85)  // crimson fill — profit zone
-c_short_border = color.new(#EF5350, 40)  // crimson border
+c_short_profit = color.new(#F23645, 75)   // TV default short red
+c_short_border = color.new(#F23645, 30)
+c_short_line   = color.new(#F23645, 0)
 
-// Shared
-c_sl_fill      = color.new(#FF1744, 90)  // very faint red — loss zone
-c_sl_border    = color.new(#FF1744, 55)  // red border — loss zone
-c_sl_line      = #FF1744                 // red — SL line
-c_tp1_line     = color.new(#FFFFFF, 50)  // faint white — TP1 (minor)
-c_tp3_line     = color.new(#FFFFFF, 50)  // faint white — TP3 (extension)
-c_label_bg     = color.new(#0D0D0D, 8)   // near-black label bg
-c_label_txt    = #E0E0E0                 // light grey text
+c_loss_fill    = color.new(#787B86, 85)   // TV default grey loss zone
+c_loss_border  = color.new(#787B86, 50)
+c_sl_line      = color.new(#787B86, 0)
 
-// Chart levels
+c_label_bg     = color.new(#131722, 5)    // TV chart dark background
+c_label_txt_l  = color.new(#089981, 0)    // teal  text for long label
+c_label_txt_s  = color.new(#F23645, 0)    // red   text for short label
+
 c_pdh          = color.new(#888888, 30)
 c_pdl          = color.new(#888888, 30)
 c_fb           = color.new(#CCCCCC, 55)
 
-// Session background — subtle blue tint on NY session only
-c_session      = color.new(#1565C0, 94)  // very dark navy, barely visible
+c_session      = color.new(#2962FF, 95)   // subtle blue — NY session only
 
 // ─── Session ──────────────────────────────────────────────────────────────────
 NY           = "America/New_York"
@@ -121,8 +118,8 @@ if not na(prev_day_low)  and not pdl_swept and low  < prev_day_low
 pdh_confirmed = pdh_swept[1]
 pdl_confirmed = pdl_swept[1]
 
-plotshape(not pdh_swept[1] and pdh_swept, "PDH Swept", shape.circle, location.abovebar, color.new(#EF5350, 40), size=size.tiny)
-plotshape(not pdl_swept[1] and pdl_swept, "PDL Swept", shape.circle, location.belowbar, color.new(#26A69A, 40), size=size.tiny)
+plotshape(not pdh_swept[1] and pdh_swept, "PDH Swept", shape.circle, location.abovebar, color.new(#F23645, 40), size=size.tiny)
+plotshape(not pdl_swept[1] and pdl_swept, "PDL Swept", shape.circle, location.belowbar, color.new(#089981, 40), size=size.tiny)
 
 // ─── One Trade Per Day ────────────────────────────────────────────────────────
 var bool trade_taken = false
@@ -174,88 +171,73 @@ qty_s    = short_signal ? math.max(1, math.round(risk_amt / r_s)) : na
 bx = bar_index + 20
 
 if long_signal
-    // Zones
+    // Zones — TV Long Position tool style
     box.new(bar_index, tp2_l, bx, entry_l,
          bgcolor=c_long_profit, border_color=c_long_border, border_width=1)
     box.new(bar_index, entry_l, bx, sl_l,
-         bgcolor=c_sl_fill, border_color=c_sl_border, border_width=1)
+         bgcolor=c_loss_fill, border_color=c_loss_border, border_width=1)
     // Lines
-    line.new(bar_index, entry_l, bx, entry_l, color=color.new(#26A69A, 0),  width=2, style=line.style_solid)
-    line.new(bar_index, sl_l,    bx, sl_l,    color=color.new(#FF1744, 0),  width=1, style=line.style_solid)
-    line.new(bar_index, tp1_l,   bx, tp1_l,   color=color.new(#26A69A, 60), width=1, style=line.style_dashed)
-    line.new(bar_index, tp2_l,   bx, tp2_l,   color=color.new(#26A69A, 0),  width=1, style=line.style_solid)
-    line.new(bar_index, tp3_l,   bx, tp3_l,   color=color.new(#26A69A, 60), width=1, style=line.style_dashed)
-    // Right-edge price labels
-    label.new(bx, entry_l, " E  " + str.tostring(entry_l, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#26A69A, 0), size=size.tiny)
-    label.new(bx, sl_l,    " SL " + str.tostring(sl_l, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#FF1744, 0), size=size.tiny)
-    label.new(bx, tp2_l,   " T2 " + str.tostring(tp2_l, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#26A69A, 0), size=size.tiny)
-    label.new(bx, tp3_l,   " T3 " + str.tostring(tp3_l, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#26A69A, 30), size=size.tiny)
+    line.new(bar_index, entry_l, bx, entry_l, color=c_long_line,               width=2, style=line.style_solid)
+    line.new(bar_index, sl_l,    bx, sl_l,    color=c_sl_line,                 width=1, style=line.style_solid)
+    line.new(bar_index, tp1_l,   bx, tp1_l,   color=color.new(#089981, 55),    width=1, style=line.style_dashed)
+    line.new(bar_index, tp2_l,   bx, tp2_l,   color=c_long_line,               width=1, style=line.style_solid)
+    line.new(bar_index, tp3_l,   bx, tp3_l,   color=color.new(#089981, 55),    width=1, style=line.style_dashed)
+    // Price labels at right edge
+    label.new(bx, entry_l, "E " + str.tostring(entry_l, "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=c_long_line,  size=size.tiny)
+    label.new(bx, sl_l,    "SL " + str.tostring(sl_l,   "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=c_sl_line,    size=size.tiny)
+    label.new(bx, tp2_l,   "2R " + str.tostring(tp2_l,  "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=c_long_line,  size=size.tiny)
+    label.new(bx, tp3_l,   "3R " + str.tostring(tp3_l,  "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=color.new(#089981, 40), size=size.tiny)
 
 if short_signal
-    // Zones
+    // Zones — TV Short Position tool style
     box.new(bar_index, entry_s, bx, tp2_s,
          bgcolor=c_short_profit, border_color=c_short_border, border_width=1)
     box.new(bar_index, sl_s,    bx, entry_s,
-         bgcolor=c_sl_fill, border_color=c_sl_border, border_width=1)
+         bgcolor=c_loss_fill, border_color=c_loss_border, border_width=1)
     // Lines
-    line.new(bar_index, entry_s, bx, entry_s, color=color.new(#EF5350, 0),  width=2, style=line.style_solid)
-    line.new(bar_index, sl_s,    bx, sl_s,    color=color.new(#FF1744, 0),  width=1, style=line.style_solid)
-    line.new(bar_index, tp1_s,   bx, tp1_s,   color=color.new(#EF5350, 60), width=1, style=line.style_dashed)
-    line.new(bar_index, tp2_s,   bx, tp2_s,   color=color.new(#EF5350, 0),  width=1, style=line.style_solid)
-    line.new(bar_index, tp3_s,   bx, tp3_s,   color=color.new(#EF5350, 60), width=1, style=line.style_dashed)
-    // Right-edge price labels
-    label.new(bx, entry_s, " E  " + str.tostring(entry_s, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#EF5350, 0), size=size.tiny)
-    label.new(bx, sl_s,    " SL " + str.tostring(sl_s, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#FF1744, 0), size=size.tiny)
-    label.new(bx, tp2_s,   " T2 " + str.tostring(tp2_s, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#EF5350, 0), size=size.tiny)
-    label.new(bx, tp3_s,   " T3 " + str.tostring(tp3_s, "#.00"),
-         style=label.style_label_right, color=color.new(#0D0D0D, 100),
-         textcolor=color.new(#EF5350, 30), size=size.tiny)
+    line.new(bar_index, entry_s, bx, entry_s, color=c_short_line,              width=2, style=line.style_solid)
+    line.new(bar_index, sl_s,    bx, sl_s,    color=c_sl_line,                 width=1, style=line.style_solid)
+    line.new(bar_index, tp1_s,   bx, tp1_s,   color=color.new(#F23645, 55),    width=1, style=line.style_dashed)
+    line.new(bar_index, tp2_s,   bx, tp2_s,   color=c_short_line,              width=1, style=line.style_solid)
+    line.new(bar_index, tp3_s,   bx, tp3_s,   color=color.new(#F23645, 55),    width=1, style=line.style_dashed)
+    // Price labels at right edge
+    label.new(bx, entry_s, "E " + str.tostring(entry_s, "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=c_short_line, size=size.tiny)
+    label.new(bx, sl_s,    "SL " + str.tostring(sl_s,   "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=c_sl_line,    size=size.tiny)
+    label.new(bx, tp2_s,   "2R " + str.tostring(tp2_s,  "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=c_short_line, size=size.tiny)
+    label.new(bx, tp3_s,   "3R " + str.tostring(tp3_s,  "#.00"),
+         style=label.style_label_right, color=color.new(#131722, 100), textcolor=color.new(#F23645, 40), size=size.tiny)
 
-// ─── Signal Info Label ────────────────────────────────────────────────────────
+// ─── Signal Info Label — clean card style ─────────────────────────────────────
 if long_signal
-    lbl = ("▲ LONG MNQ\n"
-         + "─────────────────\n"
-         + "Entry  : " + str.tostring(entry_l, "#.00") + "\n"
-         + "SL     : " + str.tostring(sl_l,    "#.00") + "  (−" + str.tostring(math.round(r_l,       1), "#.0") + " pts)\n"
-         + "TP 1R  : " + str.tostring(tp1_l,   "#.00") + "  (+" + str.tostring(math.round(r_l,       1), "#.0") + " pts)\n"
-         + "TP 2R  : " + str.tostring(tp2_l,   "#.00") + "  (+" + str.tostring(math.round(r_l * 2.0, 1), "#.0") + " pts)\n"
-         + "TP 3R  : " + str.tostring(tp3_l,   "#.00") + "  (+" + str.tostring(math.round(r_l * 3.0, 1), "#.0") + " pts)\n"
-         + "Risk $" + str.tostring(math.round(risk_amt)) + "  |  Qty " + str.tostring(qty_l))
-    label.new(bar_index, tp3_l + r_l * 0.4, lbl,
-         style=label.style_label_down,
-         color=c_label_bg, textcolor=color.new(#26A69A, 0), size=size.small)
+    lbl = ("▲  LONG  ·  MNQ\n"
+         + "Entry   " + str.tostring(entry_l, "#.00") + "\n"
+         + "SL      " + str.tostring(sl_l,    "#.00") + "   −" + str.tostring(math.round(r_l, 1),       "#.0") + " pts\n"
+         + "TP 2R   " + str.tostring(tp2_l,   "#.00") + "   +" + str.tostring(math.round(r_l * 2.0, 1), "#.0") + " pts\n"
+         + "TP 3R   " + str.tostring(tp3_l,   "#.00") + "   +" + str.tostring(math.round(r_l * 3.0, 1), "#.0") + " pts\n"
+         + "Risk  $" + str.tostring(math.round(risk_amt)) + "   Qty " + str.tostring(qty_l))
+    label.new(bar_index, tp2_l + r_l * 0.8, lbl,
+         style=label.style_label_down, color=c_label_bg, textcolor=c_label_txt_l, size=size.small)
 
 if short_signal
-    lbl = ("▼ SHORT MNQ\n"
-         + "─────────────────\n"
-         + "Entry  : " + str.tostring(entry_s, "#.00") + "\n"
-         + "SL     : " + str.tostring(sl_s,    "#.00") + "  (+" + str.tostring(math.round(r_s,       1), "#.0") + " pts)\n"
-         + "TP 1R  : " + str.tostring(tp1_s,   "#.00") + "  (−" + str.tostring(math.round(r_s,       1), "#.0") + " pts)\n"
-         + "TP 2R  : " + str.tostring(tp2_s,   "#.00") + "  (−" + str.tostring(math.round(r_s * 2.0, 1), "#.0") + " pts)\n"
-         + "TP 3R  : " + str.tostring(tp3_s,   "#.00") + "  (−" + str.tostring(math.round(r_s * 3.0, 1), "#.0") + " pts)\n"
-         + "Risk $" + str.tostring(math.round(risk_amt)) + "  |  Qty " + str.tostring(qty_s))
-    label.new(bar_index, tp3_s - r_s * 0.4, lbl,
-         style=label.style_label_up,
-         color=c_label_bg, textcolor=color.new(#EF5350, 0), size=size.small)
+    lbl = ("▼  SHORT  ·  MNQ\n"
+         + "Entry   " + str.tostring(entry_s, "#.00") + "\n"
+         + "SL      " + str.tostring(sl_s,    "#.00") + "   +" + str.tostring(math.round(r_s, 1),       "#.0") + " pts\n"
+         + "TP 2R   " + str.tostring(tp2_s,   "#.00") + "   −" + str.tostring(math.round(r_s * 2.0, 1), "#.0") + " pts\n"
+         + "TP 3R   " + str.tostring(tp3_s,   "#.00") + "   −" + str.tostring(math.round(r_s * 3.0, 1), "#.0") + " pts\n"
+         + "Risk  $" + str.tostring(math.round(risk_amt)) + "   Qty " + str.tostring(qty_s))
+    label.new(bar_index, tp2_s - r_s * 0.8, lbl,
+         style=label.style_label_up, color=c_label_bg, textcolor=c_label_txt_s, size=size.small)
 
 // ─── Triangles ────────────────────────────────────────────────────────────────
-plotshape(long_signal,  "Long",  shape.triangleup,   location.belowbar, color.new(#26A69A, 0), size=size.normal)
-plotshape(short_signal, "Short", shape.triangledown, location.abovebar, color.new(#EF5350, 0), size=size.normal)
+plotshape(long_signal,  "Long",  shape.triangleup,   location.belowbar, c_long_line,  size=size.normal)
+plotshape(short_signal, "Short", shape.triangledown, location.abovebar, c_short_line, size=size.normal)
 
 // ─── Session Highlight ────────────────────────────────────────────────────────
-// Blue tint on NY session only — rest of chart stays normal
 bgcolor(in_session ? c_session : na, title="NY Session (2:30–4:30 PM Lagos)")
