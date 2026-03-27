@@ -11,22 +11,22 @@ indicator("JESH NAS M15", overlay=true, max_lines_count=500, max_boxes_count=500
 // ─── Input ────────────────────────────────────────────────────────────────────
 account_size = input.int(10000, "Account Size ($)", minval=100, step=500, group="Settings")
 
-// ─── Colors ───────────────────────────────────────────────────────────────────
-// Signal triangles — visible on any background
-col_long_tri  = color.new(#00C896, 0)    // clean teal-green triangle (pops on dark)
-col_short_tri = color.new(#FF6B6B, 0)    // clean coral-red triangle  (pops on dark)
+// ─── Colors — Monochrome Dark Premium ────────────────────────────────────────
+// Triangles: white for long, mid-grey for short — clear on dark charts
+col_long_tri  = color.new(#F0F0F0, 0)
+col_short_tri = color.new(#999999, 0)
 
-// Position tool zones
-col_profit_long  = color.new(#00C896, 80)   // green profit zone (long)
-col_profit_short = color.new(#FF6B6B, 80)   // red   profit zone (short)
-col_loss_zone    = color.new(#FF4444, 88)   // dark loss zone    (both)
+// Position tool zones — very subtle, dark aesthetic
+col_profit_long  = color.new(#CCCCCC, 88)   // barely-there light zone  (long)
+col_profit_short = color.new(#888888, 88)   // barely-there grey zone   (short)
+col_loss_zone    = color.new(#333333, 88)   // near-invisible dark zone (both)
 
-// Position tool lines
-col_entry  = color.new(#FFFFFF, 20)   // bright white entry line
-col_sl     = color.new(#FF4444, 10)   // red SL line
-col_tp1    = color.new(#AAFFDD, 20)   // soft green TP1 line
-col_tp2    = color.new(#00C896, 10)   // clean green TP2 line
-col_tp3    = color.new(#00FF99, 20)   // bright green TP3 line
+// Position tool lines — monochrome hierarchy
+col_entry  = color.new(#FFFFFF, 10)   // solid white — entry
+col_sl     = color.new(#666666, 10)   // mid-grey    — SL
+col_tp1    = color.new(#AAAAAA, 30)   // soft grey   — TP1 (dashed)
+col_tp2    = color.new(#DDDDDD, 10)   // light grey  — TP2 (main target)
+col_tp3    = color.new(#AAAAAA, 30)   // soft grey   — TP3 (dashed)
 
 // Chart lines
 col_pdh       = color.new(#AAAAAA, 45)
@@ -169,10 +169,10 @@ if long_signal
     // ── Zones ──
     // Loss zone: SL → Entry
     box.new(bar_index, entry_l, box_right, sl_l,
-         bgcolor=col_loss_zone, border_color=color.new(#FF4444, 70), border_width=1)
+         bgcolor=col_loss_zone, border_color=color.new(#555555, 70), border_width=1)
     // Profit zone: Entry → TP2
     box.new(bar_index, tp2_l, box_right, entry_l,
-         bgcolor=col_profit_long, border_color=color.new(#00C896, 60), border_width=1)
+         bgcolor=col_profit_long, border_color=color.new(#CCCCCC, 60), border_width=1)
 
     // ── Lines ──
     line.new(bar_index, entry_l, box_right, entry_l, color=col_entry, width=1, style=line.style_solid)
@@ -199,10 +199,10 @@ if short_signal
     // ── Zones ──
     // Loss zone: Entry → SL
     box.new(bar_index, sl_s, box_right, entry_s,
-         bgcolor=col_loss_zone, border_color=color.new(#FF4444, 70), border_width=1)
+         bgcolor=col_loss_zone, border_color=color.new(#555555, 70), border_width=1)
     // Profit zone: TP2 → Entry
     box.new(bar_index, entry_s, box_right, tp2_s,
-         bgcolor=col_profit_short, border_color=color.new(#FF6B6B, 60), border_width=1)
+         bgcolor=col_profit_short, border_color=color.new(#AAAAAA, 60), border_width=1)
 
     // ── Lines ──
     line.new(bar_index, entry_s, box_right, entry_s, color=col_entry, width=1, style=line.style_solid)
