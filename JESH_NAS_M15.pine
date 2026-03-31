@@ -326,27 +326,53 @@ plotshape(short_cond, "Short Signal", shape.triangledown, location.abovebar, c_s
 //  ALERTS — Set all 5 in TradingView so you never miss a signal
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// 1. Long signal fired
+// ── Pre-compute alert values (long) ─────────────────────────────────────────
+var float al_entry = na
+var float al_sl    = na
+var float al_tp1   = na
+var float al_tp2   = na
+var float al_tp3   = na
+var int   al_qty   = na
+
+if long_cond and strategy.position_size == 0
+    al_entry := fb_high
+    al_sl    := fb_low
+    _dist    = fb_high - fb_low
+    al_tp1   := fb_high + _dist * 1.0
+    al_tp2   := fb_high + _dist * 2.0
+    al_tp3   := fb_high + _dist * target_r
+    al_qty   := _dist > 0 ? math.max(1, math.round(risk_dollar / _dist)) : 1
+
+if short_cond and strategy.position_size == 0
+    al_entry := fb_low
+    al_sl    := fb_high
+    _dist    = fb_high - fb_low
+    al_tp1   := fb_low - _dist * 1.0
+    al_tp2   := fb_low - _dist * 2.0
+    al_tp3   := fb_low - _dist * target_r
+    al_qty   := _dist > 0 ? math.max(1, math.round(risk_dollar / _dist)) : 1
+
+// 1. Long signal — full JSON payload for webhook
 alertcondition(long_cond,
      title   = "🟢 JESH LONG Signal",
-     message = "▲ JESH LONG · NAS100\nLimit Entry: {{plot_0}}\nOpen TradingView → check signal card for Entry, SL, TP\nSession: 9:30–11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)")
+     message = '{"alert":"LONG","entry":"' + str.tostring(al_entry,"#.00") + '","sl":"' + str.tostring(al_sl,"#.00") + '","tp1":"' + str.tostring(al_tp1,"#.00") + '","tp2":"' + str.tostring(al_tp2,"#.00") + '","tp3":"' + str.tostring(al_tp3,"#.00") + '","risk":"' + str.tostring(risk_dollar) + '","qty":"' + str.tostring(al_qty) + '"}')
 
-// 2. Short signal fired
+// 2. Short signal — full JSON payload for webhook
 alertcondition(short_cond,
      title   = "🔴 JESH SHORT Signal",
-     message = "▼ JESH SHORT · NAS100\nLimit Entry: {{plot_0}}\nOpen TradingView → check signal card for Entry, SL, TP\nSession: 9:30–11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)")
+     message = '{"alert":"SHORT","entry":"' + str.tostring(al_entry,"#.00") + '","sl":"' + str.tostring(al_sl,"#.00") + '","tp1":"' + str.tostring(al_tp1,"#.00") + '","tp2":"' + str.tostring(al_tp2,"#.00") + '","tp3":"' + str.tostring(al_tp3,"#.00") + '","risk":"' + str.tostring(risk_dollar) + '","qty":"' + str.tostring(al_qty) + '"}')
 
-// 3. Any signal (long OR short) — backup catch-all
+// 3. Any signal — catch-all backup
 alertcondition(long_cond or short_cond,
      title   = "⚡ JESH Signal Fired (Any Direction)",
-     message = "JESH NAS M15 — Signal fired!\nOpen TradingView NOW → check direction + signal card\nPlace limit order before 11:30 AM NY or it cancels automatically")
+     message = '{"alert":"SIGNAL","entry":"' + str.tostring(al_entry,"#.00") + '","sl":"' + str.tostring(al_sl,"#.00") + '","tp3":"' + str.tostring(al_tp3,"#.00") + '","risk":"' + str.tostring(risk_dollar) + '","qty":"' + str.tostring(al_qty) + '"}')
 
-// 4. Session just opened — reminder to be ready
+// 4. Session open reminder
 alertcondition(first_bar_sess,
      title   = "🔔 JESH Session Open — 9:30 AM NY",
-     message = "NY session open — 9:30 AM NY (Lagos: 2:30 PM WAT summer · 3:30 PM WAT winter)\nOpening Range is now set. Watch for breakout signal.\nStay ready until 11:30 AM NY.")
+     message = '{"alert":"SESSION_OPEN"}')
 
-// 5. Force close window approaching — get off any open trade
+// 5. Force close warning
 alertcondition(in_fc and not in_fc[1],
      title   = "⚠️ JESH Force Close — 4:55 PM NY",
-     message = "FORCE CLOSE WINDOW — 4:55 PM NY\nClose any open NAS100 position NOW.\nNo overnight positions allowed.")
+     message = '{"alert":"FORCE_CLOSE"}')
