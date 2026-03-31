@@ -17,7 +17,7 @@
 
 **DO:**
 - Risk exactly 1% per trade during evaluation
-- Stop trading if you hit −3% on any single day
+- Stop trading after your SL is hit for the day — at 1% risk you cannot breach the 5% daily limit in one session
 - Take every valid signal — consistency matters
 - Keep a journal of every trade
 
