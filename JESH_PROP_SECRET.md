@@ -55,18 +55,20 @@
 
 ## Fast Account Math
 
+> The strategy does **not** fire every day. A signal only triggers when price breaks the opening range AND the previous day filter aligns. Based on 16 years of real backtest data, the actual average is **7–9 trades per month** — not 20. Some months have as few as 2–3 signals. Plan around that reality.
+
 **$5k Challenge → Pass:**
 - Risk $50/trade (1%)
 - 3R target = $150 per win
-- Typical month: ~20 trading days × 1 signal = ~20 trades
-- At 52.8% win rate: ~10–11 wins, ~9–10 losses
-- Monthly P&L estimate: (11 × $150) − (9 × $50) = $1,650 − $450 = **+$1,200**
-- Most $5k challenges require 8–10% profit = $400–500 → hit in **under 2 weeks**
+- Realistic month: ~8 trades
+- At 52.8% win rate: ~4–5 wins, ~3–4 losses
+- Monthly P&L estimate: (4.5 × $150) − (3.5 × $50) = $675 − $175 = **~$500/month**
+- Most $5k challenges require 8–10% profit = $400–500 → hit in **roughly 1 month**
 
 **$10k Challenge → Pass:**
 - Risk $100/trade (1%)
-- Monthly estimate: **+$2,400**
-- Most $10k challenges require $800–1,000 profit → hit in **under 2 weeks**
+- Monthly estimate: **~$1,000/month**
+- Most $10k challenges require $800–1,000 profit → hit in **1–2 months**
 
 ---
 
