@@ -109,6 +109,7 @@ If TP is not hit by **4:55 PM NY (Lagos: 10:55 PM WAT)** → close at market, ta
 **Limit not filled by 11:30 AM NY:** Cancel. Do not lower the limit to chase. Move on.
 
 **2 losses in a row:** Reduce risk to 0.5% for next 3 days. Reset.
+> Two consecutive losses can be variance — the strategy loses 47.2% of trades by design. But they can also mean you're in a choppy market or your execution is off. Dropping to 0.5% for 3 days keeps you in the game without the emotional pressure of full risk. You stay sharp, the account stays protected, and you reset your psychology before going back to full size. Protecting capital during a cold streak is what separates funded traders from blown accounts.
 
 **Down 3% on the day:** Stop trading. Done for the day. Protect the account.
 
