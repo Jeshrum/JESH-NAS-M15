@@ -1,17 +1,36 @@
 # JESH NAS M15
 
 > NAS100 Opening Range Breakout | 16-Year Backtest | Prop Firm Ready
-> **Lagos / Nigeria: 2:30 PM – 4:30 PM WAT**
+> **Timeframe: 15 Minutes (M15) only**
+> **Lagos / Nigeria session: 2:30 PM – 4:30 PM WAT**
+
+---
+
+## The Mission
+
+**$5,000 prop evaluation → $1,000,000 funded — 1 year or less.**
+
+| Phase | Account | Risk | Target |
+|---|---|---|---|
+| Phase 1 — Eval | $5,000 prop | Conservative 1% | Pass 10% profit target, stay within DD rules |
+| Phase 2 — Funded | $25k–$100k | Normal 2% | Compound monthly, scale to next tier |
+| Phase 3 — Scale | $200k–$500k | Normal 2% | Multiple funded accounts running same strategy |
+| Phase 4 — Target | $1M+ | 1–2% | Strategy proven across 16 years — let it run |
+
+> Strategy never breached a 10% drawdown floor in 16 years. Prop firm safe from day one.
 
 ---
 
 ## Backtest Results (2010–2026)
 
-![Backtest Report](images/backtest_report.png)
+> **All results are on the M15 (15-minute) timeframe. Do not use any other timeframe.**
+
+![Backtest Report](images/backtest_report_v2.png)
 
 | Metric | Result |
 |---|---|
 | Period | Nov 2010 – Mar 2026 |
+| **Timeframe** | **M15 (15-minute bars only)** |
 | Initial Capital | $10,000 |
 | **Final Balance** | **$37,816** |
 | **Net Profit** | **+$27,816 (+278%)** |
@@ -22,7 +41,7 @@
 | Max Drawdown | −10.9% |
 | Prop Firm Floor Breached | **Never** |
 
-> Backtested on 354,006 M15 bars. Winning combo: Limit Entry + 3R TP + 9:30–11:30 NY session + Sweeps OFF. 1% risk, $0.50 commission/side.
+> Backtested on 354,006 M15 bars. Winning combo: Limit Entry + 3R TP + 9:30–11:30 AM NY (2:30–4:30 PM Lagos WAT) + Sweeps OFF. 1% risk, $0.50 commission/side.
 
 ---
 
@@ -44,12 +63,13 @@ All positions force-closed before 17:00 NY. No overnight risk.
 
 ## Setup — TradingView
 
-1. Open **MNQ1!** or **NAS100** chart → set to **15-minute** timeframe
+1. Open **MNQ1!** or **NAS100** chart → **MUST be 15-minute (M15) timeframe**
 2. Pine Editor → paste contents of `JESH_NAS_M15.pine` → Save → Add to chart
 3. Open settings → set your Account Size and Risk Mode
-4. Be at your screen **2:30 PM – 4:30 PM Lagos time**
+4. Be at your screen **2:30 PM – 4:30 PM Lagos / Nigeria time (WAT)**
 
 > Free TradingView plan works. Use MNQ1! (CME) for the most accurate data.
+> **Wrong timeframe = wrong signals. M15 only.**
 
 ---
 
@@ -231,7 +251,7 @@ Edit `backtest/config.py` to change account size, risk mode, or prop firm limits
 
 **What if I miss the signal?** Skip the day. Never chase. Another signal comes tomorrow.
 
-**What timeframe?** 15 minutes only.
+**What timeframe?** **M15 (15 minutes) only.** The entire strategy — opening range, signal detection, session timing — is built on 15-minute bars. Any other timeframe gives wrong signals.
 
 **What broker?** Any that offers NAS100/MNQ. Tradovate, Pepperstone, IC Markets, FXCM.
 
