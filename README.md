@@ -1,11 +1,11 @@
-# JESH NAS M15 — V2 Optimized Strategy
+# JESH NAS M15
 
-> NAS100 Opening Range Breakout | 16-Year Optimizer Backtest | Prop Firm Ready
+> NAS100 Opening Range Breakout | 16-Year Backtest | Prop Firm Ready
 > **Lagos / Nigeria: 2:30 PM – 4:30 PM WAT**
 
 ---
 
-## Backtest Results — V2 Optimized (2010–2026)
+## Backtest Results (2010–2026)
 
 ![Backtest Report](images/backtest_report.png)
 
@@ -22,18 +22,7 @@
 | Max Drawdown | −10.9% |
 | Prop Firm Floor Breached | **Never** |
 
-> Optimizer tested 32 combinations across entry type, TP method, session width, and sweep filter on 354,006 M15 bars. V2 uses the winning combo: Limit Entry + 3R TP + 9:30–11:30 session + Sweeps OFF. 1% risk, $0.50 commission/side.
-
----
-
-## Why V2 Beats V1
-
-| Setting | V1 (Old) | V2 (Optimized) | Impact |
-|---------|----------|----------------|--------|
-| Entry | Market order | **Limit order** | Market orders lost money in all 16 combos tested |
-| TP | PDH/PDL | **3R** | Higher profit factor (1.75 vs 1.69) |
-| Sweep Filter | ON | **OFF** | Sweeps OFF improved every combination |
-| Win Rate | 44.2% | **52.8%** | +8.6% win rate improvement |
+> Backtested on 354,006 M15 bars. Winning combo: Limit Entry + 3R TP + 9:30–11:30 NY session + Sweeps OFF. 1% risk, $0.50 commission/side.
 
 ---
 
@@ -42,25 +31,22 @@
 **Step 1 — Opening Range**
 The first 15-minute candle at 9:30 AM NY (2:30 PM Lagos) sets the range. High = long trigger. Low = short trigger.
 
-**Step 2 — ICT Sweep Filter**
-- Long valid only if Previous Day Low was swept before the signal
-- Short valid only if Previous Day High was swept before the signal
+**Step 2 — Signal fires**
+Price closes a 15m candle above the range high (long) or below the range low (short) → triangle appears + entry/SL/TP levels auto-populated on chart.
 
-Smart money grabs liquidity first. The sweep confirms the move is real.
+**Step 3 — Place limit order**
+Place a limit order at the First Bar High (long) or First Bar Low (short). Set SL and TP. Walk away.
 
-**Step 3 — Signal fires**
-Price closes a 15m candle above the range high (long) or below the range low (short) → triangle appears + entry/SL/TP label auto-populated on chart.
-
-**Step 4 — Execute and walk away**
-Place order at Entry shown. Set SL and TP. Close the platform. Session ends 4:30 PM Lagos — all positions force-closed.
+**Step 4 — Force close**
+All positions force-closed before 17:00 NY. No overnight risk.
 
 ---
 
 ## Setup — TradingView
 
 1. Open **MNQ1!** or **NAS100** chart → set to **15-minute** timeframe
-2. Pine Editor → paste contents of `JESH_NAS_M15_Indicator.pine` → Save → Add to chart
-3. Open settings → set your Account Size
+2. Pine Editor → paste contents of `JESH_NAS_M15.pine` → Save → Add to chart
+3. Open settings → set your Account Size and Risk Mode
 4. Be at your screen **2:30 PM – 4:30 PM Lagos time**
 
 > Free TradingView plan works. Use MNQ1! (CME) for the most accurate data.
@@ -69,26 +55,26 @@ Place order at Entry shown. Set SL and TP. Close the platform. Session ends 4:30
 
 ## Settings
 
-| Setting | Default | Notes |
+| Setting | Value | Notes |
 |---|---|---|
 | Account Size | $10,000 | Your prop firm account |
-| Risk Mode | 1% per trade | $100 max loss per trade on $10k |
+| Risk Mode | Conservative 1% | $100 max loss per trade on $10k — use during eval |
 | Session | 9:30–11:30 AM NY | 2:30–4:30 PM Lagos |
-| Entry Filter | PDH/PDL Sweep | Built-in, not optional |
-| Take Profit | TP 2R | Set and walk away |
+| Entry | Limit order at First Bar High/Low | Never market order |
+| Take Profit | 3R | 3× your risk distance |
 
 ---
 
 ## Execution — Every Trade, Every Time
 
 ```
-Signal fires → place order at Entry price shown
+Signal fires → place LIMIT order at level shown
 SL  → exactly as shown on label
-TP  → TP 2R shown on label
+TP  → 3R level shown on label
 Done → close the platform, go live your life
 ```
 
-**One trade per day. If you miss it, the day is over. No re-entries.**
+**One trade per direction per day. If limit not filled by 11:30 → cancelled automatically.**
 
 ---
 

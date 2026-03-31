@@ -1,183 +1,144 @@
-# JESH NAS M15 — Daily Trading Playbook
-
-> Your personal checklist. Every trading day. No thinking required.
-> Follow this exactly and the edge does the work.
+# JESH NAS M15 — Daily Playbook V2
+> Backtested 16 Years (2010–2026) | $10k → $37,816 | 52.8% Win Rate | PF 1.75
 
 ---
 
-## The Day at a Glance
-
-| Time (Lagos WAT) | What You Do |
-|---|---|
-| Any time before 2:00 PM | Check if today is a valid trading day |
-| **2:25 PM** | Open TradingView. Load the chart. |
-| **2:30 PM** | Session opens. First candle forming. Watch. |
-| **2:30 – 4:30 PM** | Wait for the triangle. One trade only. |
-| **4:30 PM** | Session ends. Close any open trade manually. |
-| Done | Log the trade. Close everything. Live your life. |
+## The One-Line Summary
+**Wait for NAS100 to break its 9:30 AM opening range, enter a limit order back at that level, target 3x your risk, close before NY close.**
 
 ---
 
-## Step 1 — Before You Sit Down (Morning Check)
+## Non-Negotiable Rules
 
-Ask yourself one question:
-
-> **Is today a trading day?**
-
-Valid trading days:
-- Monday to Friday only
-- No major US news at 9:30 AM ET (2:30 PM Lagos) — check [forexfactory.com](https://forexfactory.com) for red folder events
-- If there is a red news event at exactly 2:30 PM Lagos → **skip today**
-
-That's it. If it's a valid day, show up at 2:25 PM.
+1. **Only trade 9:30–11:30 AM New York time** — no signals outside this window
+2. **Limit orders only** — never chase with a market order
+3. **One trade per direction per day** — if your long TP is hit, no second long that day
+4. **Force close by 16:55 NY** — no overnight positions, ever
+5. **Cancel all pending orders at 11:30** — if the limit wasn't filled, move on
+6. **Never move your stop loss** — set it and leave it at the First Bar Low/High
 
 ---
 
-## Step 2 — 2:25 PM | Set Up Your Chart
+## Pre-Market Checklist (Before 9:30 AM NY)
 
-1. Open **TradingView**
-2. Load **MNQ1!** (or NAS100 / US100)
-3. Set timeframe to **15 minutes**
-4. Confirm the JESH NAS M15 indicator is on the chart and active
-5. Check that the **blue session background** appears at 2:30 PM
-
-You should see:
-- Dashed lines = Previous Day High (PDH) and Previous Day Low (PDL)
-- Dotted lines = will appear once first candle closes at 2:45 PM
-
-**Do not touch anything yet. Just watch.**
+- [ ] Mark **Previous Day High (PDH)** on chart
+- [ ] Mark **Previous Day Low (PDL)** on chart
+- [ ] Check economic calendar — avoid NFP, FOMC, CPI days
+- [ ] Confirm NAS100 is open (no holiday)
+- [ ] Account within prop firm rules (check daily loss limit)
 
 ---
 
-## Step 3 — 2:30 PM | First Candle Forms
+## The Setup — Step by Step
 
-At exactly 2:30 PM Lagos, the first 15-minute candle of the NY session begins.
+### 9:30 AM — First Bar Forms
+The 9:30 AM 15-minute candle is your **Opening Range**.
+- **First Bar High (FBH)** = top of that candle
+- **First Bar Low (FBL)** = bottom of that candle
 
-At **2:45 PM** it closes. The indicator now plots:
-- Dotted line at the **first candle HIGH** — this is the long trigger
-- Dotted line at the **first candle LOW** — this is the short trigger
+### After 9:30 — Wait for the Break
+**LONG SIGNAL:**
+- Close crosses ABOVE the First Bar High
+- Previous Day High must be ABOVE the First Bar High (room to run)
+- PDH filter confirms bullish bias for the day
 
-**Now you wait for a sweep.**
+**SHORT SIGNAL:**
+- Close crosses BELOW the First Bar Low
+- Previous Day Low must be BELOW the First Bar Low (room to run)
+- PDL filter confirms bearish bias for the day
 
-The indicator will show a small circle dot when PDH or PDL is swept:
-- Teal dot below a candle = PDL was swept → long setup is building
-- Red dot above a candle = PDH was swept → short setup is building
+### Entry — Limit Order
+Do NOT enter at the crossover candle close.
+**Place a limit order back at the First Bar High (long) or First Bar Low (short).**
+Price usually pulls back to fill you. If it doesn't fill by 11:30 → cancel it.
 
-No dot = no sweep yet = no trade yet. Keep watching.
+### Stop Loss
+- **Long:** Stop at First Bar LOW
+- **Short:** Stop at First Bar HIGH
+Never widen it. Never move it.
+
+### Take Profit — 3R
+- **Long TP:** Entry + (Entry − SL) × 3
+- **Short TP:** Entry − (SL − Entry) × 3
+
+Example: Entry 20,000 | SL 19,950 | Risk = 50 pts → TP = 20,150
+
+### Force Close
+If TP is not hit by 16:55 NY → close at market, take whatever profit/loss is on the table.
 
 ---
 
-## Step 4 — The Signal
+## Position Sizing by Account
 
-When the signal fires, you will see:
+| Account | Risk Mode | Risk/Trade | Notes |
+|---------|-----------|------------|-------|
+| $5,000  | Conservative 1% | $50  | Prop firm eval phase |
+| $10,000 | Conservative 1% | $100 | Prop firm eval phase |
+| $25,000 | Normal 2%       | $500 | Funded account |
+| $50,000 | Normal 2%       | $1,000 | Funded account |
+| $100,000| Normal 2%       | $2,000 | Scaling phase |
+| $200,000| Aggressive 3%   | $6,000 | Advanced scaling |
 
-- **Teal triangle below a candle** = LONG signal
-- **Red triangle above a candle** = SHORT signal
-- A label appears with **Entry, SL, TP 2R, TP 3R**
-- A position zone box draws automatically on the chart
-
-**Read the label. Write down three numbers:**
-1. Entry price
-2. SL price
-3. TP 2R price
+**Formula:** Qty = Risk Dollar ÷ (Entry − SL in points)
 
 ---
 
-## Step 5 — Place the Trade (2 Minutes Max)
+## Prop Firm Rules to Never Break
 
-Open your broker app (MT4 / MT5 / Tradovate / any NAS100 broker).
+| Rule | Limit | Your Buffer |
+|------|-------|-------------|
+| Daily Loss Limit | 5% of account | Never risk more than 1–2% per trade |
+| Max Drawdown | 10% of account | Stop trading if down 6% on the month |
+| No Overnight Positions | Strict | Force close handles this |
+| Consistency Rule | Some firms require it | Never bet more than 30% of profit in one day |
+
+---
+
+## What to Do When Things Go Wrong
+
+**SL hit:** Log the trade. Do not re-enter same direction. Wait for next day.
+
+**Limit not filled:** Cancel at 11:30. Do not lower the limit to chase. Move on.
+
+**2 losses in a row:** Reduce risk to 0.5% for next 3 days. Reset.
+
+**Down 3% on the day:** Stop trading. Done for the day. Protect the account.
+
+**Feeling emotional:** Close the platform. The setup will come back tomorrow.
+
+---
+
+## Scaling Path — $5k to $1M
+
+| Phase | Account | Monthly Target | Strategy |
+|-------|---------|----------------|----------|
+| 1 — Eval | $5k prop | Pass challenge | 1% risk, strict rules |
+| 2 — Funded | $25k–50k funded | $1,000–2,000/mo | 1–2% risk |
+| 3 — Scale | $100k funded | $4,000–6,000/mo | 2% risk |
+| 4 — Compound | $200k+ | $10,000+/mo | 2% risk, multiple accounts |
+| 5 — Target | $1M managed | Scale into live capital | Proven track record |
+
+**Key:** Don't rush phases. Pass the eval clean. Build the track record. Scale the size.
+
+---
+
+## Daily Trade Journal Template
 
 ```
-Direction : BUY  (long triangle) or SELL (short triangle)
-Asset     : NAS100 / US100 / MNQ
-Entry     : Market order now, or limit at the Entry price shown
-Stop Loss : Exactly the SL price from the label
-Take Profit: TP 2R price from the label
+Date: ___________
+Direction: LONG / SHORT
+First Bar High: _______  First Bar Low: _______
+PDH: _______  PDL: _______
+Entry (Limit): _______
+SL: _______  TP: _______
+Risk $: _______  Qty: _______
+
+Outcome: TP / SL / Force Close / Not Filled
+PnL: $_______
+Notes: ________________________________
 ```
 
-**Position sizing at 1% risk on $10,000:**
-```
-Risk per trade = $10,000 × 1% = $100
-SL distance in points = Entry − SL (for long)
-Contracts = $100 ÷ SL distance
-```
-
-Example: SL distance = 50 points, NAS100 = $1/pt → 2 units
-
-Once placed: **close the broker app. Do not watch it.**
-
 ---
 
-## Step 6 — 4:30 PM | Force Close
-
-The NY session ends at **4:30 PM Lagos time**.
-
-If your trade is still open and TP was not hit:
-- Open your broker
-- Close the trade at market price manually
-- This is your force close — it is part of the strategy
-
-**Do not hold overnight. Ever.**
-
----
-
-## Step 7 — Log the Trade
-
-After every trade, write this down (phone notes, journal, anything):
-
-```
-Date     :
-Direction: Long / Short
-Entry    :
-SL       :
-TP       :
-Result   : TP hit / SL hit / Force closed
-P&L      :
-Notes    : (anything unusual about the setup)
-```
-
-That's it. Day done.
-
----
-
-## Daily Rules — Non-Negotiable
-
-- **One trade per day.** Signal fires once. You take it or you don't.
-- **Never move your SL.** Once placed, it stays.
-- **Never add to a losing trade.**
-- **If you miss the signal, the day is over.** No chasing.
-- **If no triangle appears by 4:00 PM, there is no trade today.** Walk away.
-- **Never trade red news days.** The data doesn't have an edge on those days.
-
----
-
-## What a Normal Week Looks Like
-
-| Day | What Happens |
-|---|---|
-| Mon | Signal fires 2:47 PM. Long. SL hit. −$100. Log it. Done. |
-| Tue | No sweep detected. No triangle. No trade. |
-| Wed | Signal fires 3:15 PM. Short. Force closed 4:30 PM. +$340. |
-| Thu | Red news at 2:30 PM. Skip. |
-| Fri | Signal fires 2:45 PM. Long. TP 2R hit. +$200. |
-
-**3 trades. 2 wins. 1 loss. Net: +$440 on the week.**
-That is a normal week. Some weeks are better. Some are worse.
-The edge plays out over months, not days.
-
----
-
-## Losing Streak Protocol
-
-| Losses in a Row | What You Do |
-|---|---|
-| 1–4 | Normal 1% risk. Keep going. |
-| 5 | Drop to 0.5% risk ($50/trade). Continue taking signals. |
-| 6–10 | Stay at 0.5%. Do not skip signals. Do not change strategy. |
-| First 3 wins | Return to 1% risk. |
-
-**Never increase size to recover losses. That is how accounts blow.**
-
----
-
-*JESH NAS M15 — The edge is built in. Your only job is to execute.*
+*Strategy optimized via 16-year backtest (2010–2026) on NAS100 M15 data.*
+*Best combo: Limit Entry | 3R TP | 9:30–11:30 session | Sweeps OFF*
