@@ -321,3 +321,32 @@ bgcolor(in_fc         ? color.new(#FF1744, 92) : na, title="Force Close Window")
 
 plotshape(long_cond,  "Long Signal",  shape.triangleup,   location.belowbar, c_long,  size=size.normal)
 plotshape(short_cond, "Short Signal", shape.triangledown, location.abovebar, c_short, size=size.normal)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ALERTS — Set all 5 in TradingView so you never miss a signal
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 1. Long signal fired
+alertcondition(long_cond,
+     title   = "🟢 JESH LONG Signal",
+     message = "▲ JESH LONG · NAS100\nLimit Entry: {{plot_0}}\nOpen TradingView → check signal card for Entry, SL, TP\nSession: 9:30–11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)")
+
+// 2. Short signal fired
+alertcondition(short_cond,
+     title   = "🔴 JESH SHORT Signal",
+     message = "▼ JESH SHORT · NAS100\nLimit Entry: {{plot_0}}\nOpen TradingView → check signal card for Entry, SL, TP\nSession: 9:30–11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)")
+
+// 3. Any signal (long OR short) — backup catch-all
+alertcondition(long_cond or short_cond,
+     title   = "⚡ JESH Signal Fired (Any Direction)",
+     message = "JESH NAS M15 — Signal fired!\nOpen TradingView NOW → check direction + signal card\nPlace limit order before 11:30 AM NY or it cancels automatically")
+
+// 4. Session just opened — reminder to be ready
+alertcondition(first_bar_sess,
+     title   = "🔔 JESH Session Open — 9:30 AM NY",
+     message = "NY session open — 9:30 AM NY (Lagos: 2:30 PM WAT summer · 3:30 PM WAT winter)\nOpening Range is now set. Watch for breakout signal.\nStay ready until 11:30 AM NY.")
+
+// 5. Force close window approaching — get off any open trade
+alertcondition(in_fc and not in_fc[1],
+     title   = "⚠️ JESH Force Close — 4:55 PM NY",
+     message = "FORCE CLOSE WINDOW — 4:55 PM NY\nClose any open NAS100 position NOW.\nNo overnight positions allowed.")
