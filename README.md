@@ -2,7 +2,7 @@
 
 > NAS100 Opening Range Breakout | 16-Year Backtest | Prop Firm Ready
 > **Timeframe: 15 Minutes (M15) only**
-> **Lagos / Nigeria session: 2:30 PM – 4:30 PM WAT**
+> **Session: 9:30 AM – 11:30 AM NY (2:30 PM – 4:30 PM Lagos WAT in summer · 3:30 PM – 5:30 PM Lagos WAT in winter)**
 
 ---
 
@@ -41,14 +41,14 @@
 | Max Drawdown | −10.9% |
 | Prop Firm Floor Breached | **Never** |
 
-> Backtested on 354,006 M15 bars. Winning combo: Limit Entry + 3R TP + 9:30–11:30 AM NY (2:30–4:30 PM Lagos WAT) + Sweeps OFF. 1% risk, $0.50 commission/side.
+> Backtested on 354,006 M15 bars. Winning combo: Limit Entry + 3R TP + **9:30–11:30 AM NY** (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter) + Sweeps OFF. 1% risk, $0.50 commission/side.
 
 ---
 
 ## How It Works
 
 **Step 1 — Opening Range**
-The first 15-minute candle at 9:30 AM NY (2:30 PM Lagos) sets the range. High = long trigger. Low = short trigger.
+The first 15-minute candle at **9:30 AM NY (2:30 PM Lagos WAT summer · 3:30 PM Lagos WAT winter)** sets the range. High = long trigger. Low = short trigger.
 
 **Step 2 — Signal fires**
 Price closes a 15m candle above the range high (long) or below the range low (short) → triangle appears + entry/SL/TP levels auto-populated on chart.
@@ -57,7 +57,7 @@ Price closes a 15m candle above the range high (long) or below the range low (sh
 Place a limit order at the First Bar High (long) or First Bar Low (short). Set SL and TP. Walk away.
 
 **Step 4 — Force close**
-All positions force-closed before 17:00 NY. No overnight risk.
+All positions force-closed before **5:00 PM NY (11:00 PM Lagos WAT)**. No overnight risk.
 
 ---
 
@@ -66,7 +66,7 @@ All positions force-closed before 17:00 NY. No overnight risk.
 1. Open **MNQ1!** or **NAS100** chart → **MUST be 15-minute (M15) timeframe**
 2. Pine Editor → paste contents of `JESH_NAS_M15.pine` → Save → Add to chart
 3. Open settings → set your Account Size and Risk Mode
-4. Be at your screen **2:30 PM – 4:30 PM Lagos / Nigeria time (WAT)**
+4. Be at your screen for **9:30 AM – 11:30 AM NY (2:30 PM – 4:30 PM Lagos WAT during summer · 3:30 PM – 5:30 PM during winter)**
 
 > Free TradingView plan works. Use MNQ1! (CME) for the most accurate data.
 > **Wrong timeframe = wrong signals. M15 only.**
@@ -79,7 +79,7 @@ All positions force-closed before 17:00 NY. No overnight risk.
 |---|---|---|
 | Account Size | $10,000 | Your prop firm account |
 | Risk Mode | Conservative 1% | $100 max loss per trade on $10k — use during eval |
-| Session | 9:30–11:30 AM NY | 2:30–4:30 PM Lagos |
+| Session | 9:30 AM – 11:30 AM NY | Lagos: 2:30–4:30 PM (summer) · 3:30–5:30 PM (winter) |
 | Entry | Limit order at First Bar High/Low | Never market order |
 | Take Profit | 3R | 3× your risk distance |
 
@@ -94,19 +94,23 @@ TP  → 3R level shown on label
 Done → close the platform, go live your life
 ```
 
-**One trade per direction per day. If limit not filled by 11:30 → cancelled automatically.**
+**One trade per direction per day. If limit not filled by 11:30 AM NY (4:30 PM Lagos WAT summer · 5:30 PM Lagos WAT winter) → cancelled automatically.**
 
 ---
 
 ## Session Times
 
-| Location | Time |
-|---|---|
-| **Nigeria / Ghana (WAT)** | **2:30 PM – 4:30 PM** |
-| London (GMT) | 2:30 PM – 4:30 PM |
-| Johannesburg (SAST) | 3:30 PM – 5:30 PM |
-| Nairobi (EAT) | 4:30 PM – 6:30 PM |
-| New York (ET) | 9:30 AM – 11:30 AM |
+> Session time is always **9:30 AM – 11:30 AM New York (ET)**. Lagos time shifts by 1 hour depending on US Daylight Saving Time (DST). US summer DST runs roughly March–November; US winter (no DST) runs November–March.
+
+| Location | Summer (Mar–Nov) | Winter (Nov–Mar) |
+|---|---|---|
+| **New York (ET)** | **9:30 AM – 11:30 AM** | **9:30 AM – 11:30 AM** |
+| **Nigeria / Ghana (WAT)** | **2:30 PM – 4:30 PM** | **3:30 PM – 5:30 PM** |
+| London (GMT/BST) | 2:30 PM – 4:30 PM | 2:30 PM – 4:30 PM |
+| Johannesburg (SAST) | 3:30 PM – 5:30 PM | 4:30 PM – 6:30 PM |
+| Nairobi (EAT) | 4:30 PM – 6:30 PM | 5:30 PM – 7:30 PM |
+
+> **If you're in Lagos and the market feels like it's not moving at your usual 2:30 PM, it's probably winter — start at 3:30 PM instead.**
 
 ---
 
