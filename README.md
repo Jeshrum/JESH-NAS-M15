@@ -245,22 +245,6 @@ Edit `backtest/config.py` to change account size, risk mode, or prop firm limits
 
 **Is it prop firm safe?** Yes. Never breached the 10% max drawdown floor in 16 years. Use 1% risk during evaluation.
 
----
-
-## The Mission
-
-**$5,000 prop evaluation → $1,000,000 funded — 1 year or less.**
-
-| Phase | Account | Risk | Target |
-|---|---|---|---|
-| Phase 1 — Eval | $5,000 prop | Conservative 1% | Pass profit target, stay within DD rules |
-| Phase 2 — Funded | $25k–$100k | Normal 2% | Compound monthly, scale to next tier |
-| Phase 3 — Scale | $200k–$500k | Normal 2% | Multiple funded accounts, same strategy |
-| Phase 4 — Target | $1M+ | 1–2% | Strategy proven across 16 years — let it run |
-
-> Never breached a 10% drawdown floor in 16 years. Built for prop firms from the ground up.
-
----
 
 *JESH NAS M15 — Built by Jesh | 16 years of NAS100 edge | 354,006 bars backtested*
 
