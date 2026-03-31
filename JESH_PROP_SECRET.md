@@ -1,11 +1,11 @@
-# JESH NAS M15 — Prop Firm Secret V2
+# JESH NAS M15 — Prop Firm Secret
 > How to pass a $5k–$200k prop firm challenge using this strategy
 
 ---
 
 ## Why This Strategy Works for Prop Firms
 
-1. **No overnight risk** — force close before 17:00 NY eliminates overnight gaps
+1. **No overnight risk** — force close before 4:55 PM NY eliminates overnight gaps
 2. **Hard stop loss always set** — no runaway losses, prop firms love this
 3. **1 trade per day max** — low frequency = low noise, clean track record
 4. **Fixed 1% risk** — daily loss limit of 5% means you can take 4 losses in a row and still be inside rules
@@ -17,14 +17,14 @@
 
 **DO:**
 - Risk exactly 1% per trade during evaluation
-- Stop trading if you hit -3% on any single day
+- Stop trading if you hit −3% on any single day
 - Take every valid signal — consistency matters
 - Keep a journal of every trade
 
 **DO NOT:**
 - Risk more than 1% trying to make back a loss
-- Trade outside 9:30–11:30 NY window
-- Hold positions past 16:55 NY
+- Trade outside **9:30–11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)**
+- Hold positions past **4:55 PM NY (Lagos: 10:55 PM WAT)**
 - Trade on NFP, FOMC, or CPI days — skip those entirely
 
 ---
@@ -32,7 +32,7 @@
 ## High-Risk Days to Avoid
 
 | Event | Action |
-|-------|--------|
+|---|---|
 | NFP (First Friday of month) | No trade |
 | FOMC Rate Decision | No trade |
 | CPI Data Release | No trade |
@@ -43,8 +43,8 @@
 
 ## Signal Checklist (Before Every Entry)
 
-- [ ] Time is between 9:30–11:30 AM NY
-- [ ] First bar has formed (wait for 9:45 AM candle to close)
+- [ ] Time is between **9:30–11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)**
+- [ ] First bar has formed (wait for 9:45 AM NY candle to close)
 - [ ] Close has crossed above FBH (long) or below FBL (short)
 - [ ] PDH is above FBH (long) OR PDL is below FBL (short)
 - [ ] No major news in next 30 minutes
@@ -58,8 +58,8 @@
 **$5k Challenge → Pass:**
 - Risk $50/trade (1%)
 - 3R target = $150 per win
-- Typical month: ~20 trade days × 1 signal = 20 trades
-- At 52.8% win rate: ~10-11 wins, ~9-10 losses
+- Typical month: ~20 trading days × 1 signal = ~20 trades
+- At 52.8% win rate: ~10–11 wins, ~9–10 losses
 - Monthly P&L estimate: (11 × $150) − (9 × $50) = $1,650 − $450 = **+$1,200**
 - Most $5k challenges require 8–10% profit = $400–500 → hit in **under 2 weeks**
 
@@ -67,6 +67,17 @@
 - Risk $100/trade (1%)
 - Monthly estimate: **+$2,400**
 - Most $10k challenges require $800–1,000 profit → hit in **under 2 weeks**
+
+---
+
+## Session Times — Know When to Be Ready
+
+| Location | Summer (Mar–Nov) | Winter (Nov–Mar) |
+|---|---|---|
+| **New York (ET)** | **9:30 AM – 11:30 AM** | **9:30 AM – 11:30 AM** |
+| **Nigeria / Ghana (WAT)** | **2:30 PM – 4:30 PM** | **3:30 PM – 5:30 PM** |
+
+> If you're in Lagos during winter (November–March) and your 2:30 PM looks quiet — it's because the session hasn't started. It starts at **3:30 PM WAT** during winter months.
 
 ---
 

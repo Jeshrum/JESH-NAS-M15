@@ -1,36 +1,21 @@
 # JESH NAS M15
 
 > NAS100 Opening Range Breakout | 16-Year Backtest | Prop Firm Ready
-> **Timeframe: 15 Minutes (M15) only**
-> **Session: 9:30 AM – 11:30 AM NY (2:30 PM – 4:30 PM Lagos WAT in summer · 3:30 PM – 5:30 PM Lagos WAT in winter)**
-
----
-
-## The Mission
-
-**$5,000 prop evaluation → $1,000,000 funded — 1 year or less.**
-
-| Phase | Account | Risk | Target |
-|---|---|---|---|
-| Phase 1 — Eval | $5,000 prop | Conservative 1% | Pass 10% profit target, stay within DD rules |
-| Phase 2 — Funded | $25k–$100k | Normal 2% | Compound monthly, scale to next tier |
-| Phase 3 — Scale | $200k–$500k | Normal 2% | Multiple funded accounts running same strategy |
-| Phase 4 — Target | $1M+ | 1–2% | Strategy proven across 16 years — let it run |
-
-> Strategy never breached a 10% drawdown floor in 16 years. Prop firm safe from day one.
+> **Timeframe: M15 (15-minute) only**
+> **Session: 9:30 AM – 11:30 AM NY · Lagos: 2:30–4:30 PM WAT (summer) · 3:30–5:30 PM WAT (winter)**
 
 ---
 
 ## Backtest Results (2010–2026)
 
-> **All results are on the M15 (15-minute) timeframe. Do not use any other timeframe.**
+> All results on the M15 timeframe. Do not use any other timeframe.
 
 ![Backtest Report](images/backtest_report_v2.png)
 
 | Metric | Result |
 |---|---|
 | Period | Nov 2010 – Mar 2026 |
-| **Timeframe** | **M15 (15-minute bars only)** |
+| Timeframe | M15 (15-minute bars) |
 | Initial Capital | $10,000 |
 | **Final Balance** | **$37,816** |
 | **Net Profit** | **+$27,816 (+278%)** |
@@ -41,7 +26,7 @@
 | Max Drawdown | −10.9% |
 | Prop Firm Floor Breached | **Never** |
 
-> Backtested on 354,006 M15 bars. Winning combo: Limit Entry + 3R TP + **9:30–11:30 AM NY** (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter) + Sweeps OFF. 1% risk, $0.50 commission/side.
+> Winning combo: Limit Entry + 3R TP + **9:30–11:30 AM NY** (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter) + Sweeps OFF. 1% risk, $0.50 commission/side.
 
 ---
 
@@ -63,13 +48,12 @@ All positions force-closed before **5:00 PM NY (11:00 PM Lagos WAT)**. No overni
 
 ## Setup — TradingView
 
-1. Open **MNQ1!** or **NAS100** chart → **MUST be 15-minute (M15) timeframe**
+1. Open **MNQ1!** or **NAS100** chart → set to **M15 (15-minute) timeframe**
 2. Pine Editor → paste contents of `JESH_NAS_M15.pine` → Save → Add to chart
 3. Open settings → set your Account Size and Risk Mode
-4. Be at your screen for **9:30 AM – 11:30 AM NY (2:30 PM – 4:30 PM Lagos WAT during summer · 3:30 PM – 5:30 PM during winter)**
+4. Be at your screen: **9:30 AM – 11:30 AM NY (Lagos: 2:30–4:30 PM WAT summer · 3:30–5:30 PM WAT winter)**
 
 > Free TradingView plan works. Use MNQ1! (CME) for the most accurate data.
-> **Wrong timeframe = wrong signals. M15 only.**
 
 ---
 
@@ -79,7 +63,7 @@ All positions force-closed before **5:00 PM NY (11:00 PM Lagos WAT)**. No overni
 |---|---|---|
 | Account Size | $10,000 | Your prop firm account |
 | Risk Mode | Conservative 1% | $100 max loss per trade on $10k — use during eval |
-| Session | 9:30 AM – 11:30 AM NY | Lagos: 2:30–4:30 PM (summer) · 3:30–5:30 PM (winter) |
+| Session | 9:30–11:30 AM NY | Lagos: 2:30–4:30 PM WAT (summer) · 3:30–5:30 PM WAT (winter) |
 | Entry | Limit order at First Bar High/Low | Never market order |
 | Take Profit | 3R | 3× your risk distance |
 
@@ -100,7 +84,7 @@ Done → close the platform, go live your life
 
 ## Session Times
 
-> Session time is always **9:30 AM – 11:30 AM New York (ET)**. Lagos time shifts by 1 hour depending on US Daylight Saving Time (DST). US summer DST runs roughly March–November; US winter (no DST) runs November–March.
+> The strategy always runs on **9:30 AM – 11:30 AM New York (ET)**. Lagos time shifts by 1 hour when US Daylight Saving Time is active (roughly March–November).
 
 | Location | Summer (Mar–Nov) | Winter (Nov–Mar) |
 |---|---|---|
@@ -110,7 +94,7 @@ Done → close the platform, go live your life
 | Johannesburg (SAST) | 3:30 PM – 5:30 PM | 4:30 PM – 6:30 PM |
 | Nairobi (EAT) | 4:30 PM – 6:30 PM | 5:30 PM – 7:30 PM |
 
-> **If you're in Lagos and the market feels like it's not moving at your usual 2:30 PM, it's probably winter — start at 3:30 PM instead.**
+> If it's winter and you're in Lagos — your session starts at **3:30 PM**, not 2:30 PM.
 
 ---
 
@@ -255,7 +239,7 @@ Edit `backtest/config.py` to change account size, risk mode, or prop firm limits
 
 **What if I miss the signal?** Skip the day. Never chase. Another signal comes tomorrow.
 
-**What timeframe?** **M15 (15 minutes) only.** The entire strategy — opening range, signal detection, session timing — is built on 15-minute bars. Any other timeframe gives wrong signals.
+**What timeframe?** M15 (15 minutes) only. Any other timeframe gives wrong signals.
 
 **What broker?** Any that offers NAS100/MNQ. Tradovate, Pepperstone, IC Markets, FXCM.
 
@@ -263,6 +247,21 @@ Edit `backtest/config.py` to change account size, risk mode, or prop firm limits
 
 ---
 
-*JESH NAS M15 — Built by Jesh | 16 years of NAS100 edge | 5.1M bars backtested*
+## The Mission
+
+**$5,000 prop evaluation → $1,000,000 funded — 1 year or less.**
+
+| Phase | Account | Risk | Target |
+|---|---|---|---|
+| Phase 1 — Eval | $5,000 prop | Conservative 1% | Pass profit target, stay within DD rules |
+| Phase 2 — Funded | $25k–$100k | Normal 2% | Compound monthly, scale to next tier |
+| Phase 3 — Scale | $200k–$500k | Normal 2% | Multiple funded accounts, same strategy |
+| Phase 4 — Target | $1M+ | 1–2% | Strategy proven across 16 years — let it run |
+
+> Never breached a 10% drawdown floor in 16 years. Built for prop firms from the ground up.
+
+---
+
+*JESH NAS M15 — Built by Jesh | 16 years of NAS100 edge | 354,006 bars backtested*
 
 > Trading involves significant risk. Past performance does not guarantee future results.
