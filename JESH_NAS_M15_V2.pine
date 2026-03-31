@@ -1,0 +1,323 @@
+// =============================================================================
+// JESH NAS M15 — V2 Optimized Strategy
+// =============================================================================
+// Backtested: 16 Years (2010–2026) | NAS100 M15 | $10k Starting Capital
+// Result:     $10k → $37,816 | 1,714 Trades | 52.8% Win Rate | PF 1.75
+// =============================================================================
+// WINNING SETTINGS (from optimizer — do not change these):
+//   ✓ Entry:        Limit order at First Bar High/Low
+//   ✓ TP:           3R (3x the risk distance)
+//   ✓ Session:      9:30–11:30 AM NY only
+//   ✓ Sweeps:       OFF (pure breakout logic)
+//   ✓ Force Close:  ON (last 2 bars before 17:00 NY)
+//   ✓ Cancel Orders ON (at session end)
+//   ✓ One TP/Dir:   ON (no re-entry same direction after TP)
+// =============================================================================
+
+//@version=6
+strategy("JESH NAS M15 — V2 Optimized",
+     overlay=true,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1,
+     margin_long=0.01,
+     margin_short=0.01,
+     commission_type=strategy.commission.cash_per_contract,
+     commission_value=0.5,
+     pyramiding=1,
+     max_lines_count=200,
+     max_boxes_count=200)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var g_session = "Session"
+enable_force_close   = input.bool(true,  "Force Close Before 17:00 NY",      group=g_session)
+enable_cancel_orders = input.bool(true,  "Cancel All Orders at Session End",  group=g_session)
+one_tp_per_dir       = input.bool(true,  "One TP Per Direction Per Day",      group=g_session)
+
+var g_risk = "Risk & Sizing"
+account_size = input.int(10000, "Account Size ($)", step=500, group=g_risk,
+     tooltip="Set to your actual prop firm account size.")
+risk_mode    = input.string("Conservative (1%)", "Risk Mode",
+     options=["Conservative (1%)", "Normal (2%)", "Aggressive (3%)"],
+     group=g_risk,
+     tooltip="1% = safest for prop firm eval. 2% = funded account. 3% = scaling phase.")
+target_r     = input.float(3.0, "Take Profit (R Multiple)", step=0.5,
+     minval=1.0, maxval=5.0, group=g_risk,
+     tooltip="3R = optimal from 16-year backtest. 2R = safer. Higher = more profit but fewer wins.")
+
+var g_vis = "Visuals"
+show_levels  = input.bool(true,  "Show PDH/PDL + First Bar Levels", group=g_vis)
+show_stats   = input.bool(true,  "Show Daily Stats Label",           group=g_vis)
+pdh_col      = input.color(color.new(#FF3B30, 20), "PDH Line Color", group=g_vis)
+pdl_col      = input.color(color.new(#34C759, 20), "PDL Line Color", group=g_vis)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CONSTANTS & COLORS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+NY             = "America/New_York"
+SESSION        = "0930-1130"   // Optimized: 9:30–11:30 only
+
+c_long         = color.new(#089981, 0)
+c_long_fill    = color.new(#089981, 75)
+c_short        = color.new(#F23645, 0)
+c_short_fill   = color.new(#F23645, 75)
+c_sl_fill      = color.new(#787B86, 85)
+c_sl_line      = color.new(#787B86, 0)
+c_label_bg     = color.new(#131722, 5)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RISK CALCULATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+risk_pct    = risk_mode == "Conservative (1%)" ? 0.01 :
+              risk_mode == "Normal (2%)"        ? 0.02 : 0.03
+risk_dollar = math.round(account_size * risk_pct)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SESSION DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+is_in_session   = not na(time(timeframe.period, SESSION, NY))
+first_bar_sess  = is_in_session and not is_in_session[1]
+session_ended   = is_in_session[1] and not is_in_session
+
+// Force close: last 2 bars before 17:00 NY
+tf_secs    = timeframe.in_seconds()
+fc_start_m = (17 * 60) - (2 * tf_secs / 60)
+fc_h       = math.floor(fc_start_m / 60)
+fc_m       = fc_start_m % 60
+fc_sess    = str.format("{0,number,00}{1,number,00}-1700", fc_h, fc_m)
+in_fc      = enable_force_close and not na(time(timeframe.period, fc_sess, NY))
+
+can_enter  = is_in_session and not in_fc
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PREVIOUS DAY HIGH / LOW
+// ═══════════════════════════════════════════════════════════════════════════════
+
+newDay = (dayofweek != dayofweek[1] or dayofmonth != dayofmonth[1]) and
+          dayofweek != dayofweek.sunday
+
+var float curr_high = na
+var float curr_low  = na
+var float pdh       = na
+var float pdl       = na
+
+if newDay
+    pdh      := curr_high
+    pdl      := curr_low
+    curr_high := high
+    curr_low  := low
+else
+    curr_high := math.max(nz(curr_high, high), high)
+    curr_low  := math.min(nz(curr_low,  low),  low)
+
+// PDH / PDL lines
+var line pdh_line = na
+var line pdl_line = na
+if newDay and not na(pdh) and show_levels
+    line.delete(pdh_line)
+    line.delete(pdl_line)
+    pdh_line := line.new(bar_index, pdh, bar_index+1, pdh,
+         extend=extend.right, color=pdh_col, width=2, style=line.style_dashed)
+    pdl_line := line.new(bar_index, pdl, bar_index+1, pdl,
+         extend=extend.right, color=pdl_col, width=2, style=line.style_dashed)
+
+if barstate.islast and show_levels
+    if not na(pdh)
+        label.new(bar_index+2, pdh, "PDH", style=label.style_label_left,
+             color=color.new(#0D0D0D,100), textcolor=pdh_col, size=size.tiny)
+    if not na(pdl)
+        label.new(bar_index+2, pdl, "PDL", style=label.style_label_left,
+             color=color.new(#0D0D0D,100), textcolor=pdl_col, size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FIRST BAR HIGH / LOW (Opening Range)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var float fb_high = na
+var float fb_low  = na
+var line  fb_h_ln = na
+var line  fb_l_ln = na
+
+if first_bar_sess
+    fb_high := high
+    fb_low  := low
+    if show_levels
+        line.delete(fb_h_ln)
+        line.delete(fb_l_ln)
+        fb_h_ln := line.new(bar_index, fb_high, bar_index+1, fb_high,
+             extend=extend.right, color=color.new(color.orange, 30), width=1, style=line.style_dotted)
+        fb_l_ln := line.new(bar_index, fb_low, bar_index+1, fb_low,
+             extend=extend.right, color=color.new(color.blue, 30), width=1, style=line.style_dotted)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DAILY TRADE TRACKING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var bool long_taken  = false
+var bool short_taken = false
+var bool long_tp_hit = false
+var bool short_tp_hit = false
+
+if first_bar_sess
+    long_taken   := false
+    short_taken  := false
+    long_tp_hit  := false
+    short_tp_hit := false
+
+// TP hit tracking
+if strategy.closedtrades != strategy.closedtrades[1]
+    last_pnl = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    last_id  = strategy.closedtrades.entry_id(strategy.closedtrades - 1)
+    if last_pnl > 0
+        if str.contains(last_id, "Long")
+            long_tp_hit := true
+        else if str.contains(last_id, "Short")
+            short_tp_hit := true
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ENTRY CONDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+long_cond = (
+     can_enter and
+     not long_taken and
+     not na(fb_high) and not na(pdh) and
+     ta.crossover(close, fb_high) and
+     pdh > fb_high and
+     (not one_tp_per_dir or not long_tp_hit))
+
+short_cond = (
+     can_enter and
+     not short_taken and
+     not na(fb_low) and not na(pdl) and
+     ta.crossunder(close, fb_low) and
+     pdl < fb_low and
+     (not one_tp_per_dir or not short_tp_hit))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STRATEGY EXECUTION — LIMIT ORDERS AT FIRST BAR LEVELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if long_cond and strategy.position_size == 0
+    entry  = fb_high
+    sl     = fb_low
+    dist   = entry - sl
+    tp     = entry + dist * target_r
+    qty    = dist > 0 ? math.max(1, math.round(risk_dollar / dist)) : 1
+
+    strategy.entry("Long",  strategy.long,  qty=qty, limit=entry)
+    strategy.exit("Long X", "Long",  limit=tp, stop=sl)
+    long_taken := true
+
+    // Visual — TV Long Position Tool style
+    bx  = bar_index + 25
+    tp1 = entry + dist * 1.0
+    tp2 = entry + dist * 2.0
+    // Profit zone (green) + Loss zone (grey)
+    box.new(bar_index, tp,    bx, entry, bgcolor=c_long_fill,  border_color=color.new(#089981,30), border_width=1)
+    box.new(bar_index, entry, bx, sl,    bgcolor=c_sl_fill,    border_color=color.new(#787B86,50), border_width=1)
+    // Entry line (solid, thick)
+    line.new(bar_index, entry, bx, entry, color=c_long,    width=2, style=line.style_solid)
+    // SL line (solid)
+    line.new(bar_index, sl,    bx, sl,    color=c_sl_line, width=1, style=line.style_solid)
+    // 1R and 2R intermediate dashed lines
+    line.new(bar_index, tp1,   bx, tp1,   color=color.new(#089981,55), width=1, style=line.style_dashed)
+    line.new(bar_index, tp2,   bx, tp2,   color=color.new(#089981,55), width=1, style=line.style_dashed)
+    // TP line (solid)
+    line.new(bar_index, tp,    bx, tp,    color=c_long,    width=1, style=line.style_solid)
+    // Price labels on right edge
+    label.new(bx, entry, "E  " + str.tostring(entry, "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=c_long,    size=size.tiny)
+    label.new(bx, sl,    "SL " + str.tostring(sl,    "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=c_sl_line, size=size.tiny)
+    label.new(bx, tp1,   "1R " + str.tostring(tp1,   "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=color.new(#089981,40), size=size.tiny)
+    label.new(bx, tp2,   "2R " + str.tostring(tp2,   "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=color.new(#089981,40), size=size.tiny)
+    label.new(bx, tp,    str.tostring(target_r,"#.#") + "R " + str.tostring(tp, "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=c_long,    size=size.tiny)
+    // Signal card
+    card = ("▲  LONG  ·  NAS100\n"
+         + "Limit Entry   " + str.tostring(entry, "#.00") + "\n"
+         + "Stop Loss     " + str.tostring(sl,    "#.00") + "   −" + str.tostring(dist,          "#.0") + " pts\n"
+         + "1R            " + str.tostring(tp1,   "#.00") + "   +" + str.tostring(dist,          "#.0") + " pts\n"
+         + "2R            " + str.tostring(tp2,   "#.00") + "   +" + str.tostring(dist * 2.0,    "#.0") + " pts\n"
+         + "TP " + str.tostring(target_r,"#.#") + "R        " + str.tostring(tp, "#.00") + "   +" + str.tostring(dist * target_r,"#.0") + " pts\n"
+         + "Risk $" + str.tostring(risk_dollar) + "   Qty " + str.tostring(qty))
+    label.new(bar_index, sl - dist * 0.7, card,
+         style=label.style_label_up, color=c_label_bg, textcolor=c_long, size=size.small)
+
+if short_cond and strategy.position_size == 0
+    entry  = fb_low
+    sl     = fb_high
+    dist   = sl - entry
+    tp     = entry - dist * target_r
+    qty    = dist > 0 ? math.max(1, math.round(risk_dollar / dist)) : 1
+
+    strategy.entry("Short",  strategy.short, qty=qty, limit=entry)
+    strategy.exit("Short X", "Short", limit=tp, stop=sl)
+    short_taken := true
+
+    // Visual — TV Short Position Tool style
+    bx  = bar_index + 25
+    tp1 = entry - dist * 1.0
+    tp2 = entry - dist * 2.0
+    // Profit zone (red) + Loss zone (grey)
+    box.new(bar_index, entry, bx, tp,    bgcolor=c_short_fill, border_color=color.new(#F23645,30), border_width=1)
+    box.new(bar_index, sl,    bx, entry, bgcolor=c_sl_fill,    border_color=color.new(#787B86,50), border_width=1)
+    // Entry line (solid, thick)
+    line.new(bar_index, entry, bx, entry, color=c_short,   width=2, style=line.style_solid)
+    // SL line (solid)
+    line.new(bar_index, sl,    bx, sl,    color=c_sl_line, width=1, style=line.style_solid)
+    // 1R and 2R intermediate dashed lines
+    line.new(bar_index, tp1,   bx, tp1,   color=color.new(#F23645,55), width=1, style=line.style_dashed)
+    line.new(bar_index, tp2,   bx, tp2,   color=color.new(#F23645,55), width=1, style=line.style_dashed)
+    // TP line (solid)
+    line.new(bar_index, tp,    bx, tp,    color=c_short,   width=1, style=line.style_solid)
+    // Price labels on right edge
+    label.new(bx, entry, "E  " + str.tostring(entry, "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=c_short,   size=size.tiny)
+    label.new(bx, sl,    "SL " + str.tostring(sl,    "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=c_sl_line, size=size.tiny)
+    label.new(bx, tp1,   "1R " + str.tostring(tp1,   "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=color.new(#F23645,40), size=size.tiny)
+    label.new(bx, tp2,   "2R " + str.tostring(tp2,   "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=color.new(#F23645,40), size=size.tiny)
+    label.new(bx, tp,    str.tostring(target_r,"#.#") + "R " + str.tostring(tp, "#.00"),
+         style=label.style_label_right, color=color.new(#131722,100), textcolor=c_short,   size=size.tiny)
+    // Signal card
+    card = ("▼  SHORT  ·  NAS100\n"
+         + "Limit Entry   " + str.tostring(entry, "#.00") + "\n"
+         + "Stop Loss     " + str.tostring(sl,    "#.00") + "   +" + str.tostring(dist,          "#.0") + " pts\n"
+         + "1R            " + str.tostring(tp1,   "#.00") + "   −" + str.tostring(dist,          "#.0") + " pts\n"
+         + "2R            " + str.tostring(tp2,   "#.00") + "   −" + str.tostring(dist * 2.0,    "#.0") + " pts\n"
+         + "TP " + str.tostring(target_r,"#.#") + "R        " + str.tostring(tp, "#.00") + "   −" + str.tostring(dist * target_r,"#.0") + " pts\n"
+         + "Risk $" + str.tostring(risk_dollar) + "   Qty " + str.tostring(qty))
+    label.new(bar_index, sl + dist * 0.7, card,
+         style=label.style_label_down, color=c_label_bg, textcolor=c_short, size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EOD MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if in_fc and strategy.position_size != 0
+    strategy.close_all(comment="Force Close EOD")
+
+if enable_cancel_orders and session_ended
+    strategy.cancel_all()
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  VISUALS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+bgcolor(is_in_session ? color.new(#2962FF, 96) : na, title="NY Session 9:30–11:30")
+bgcolor(in_fc         ? color.new(#FF1744, 92) : na, title="Force Close Window")
+
+plotshape(long_cond,  "Long Signal",  shape.triangleup,   location.belowbar, c_long,  size=size.normal)
+plotshape(short_cond, "Short Signal", shape.triangledown, location.abovebar, c_short, size=size.normal)

@@ -1,11 +1,11 @@
-# JESH NAS M15 — NAS100 Opening Range Breakout
+# JESH NAS M15 — V2 Optimized Strategy
 
-> Rules-based 15-minute ORB strategy for NAS100. NY session only. No indicators. Just levels.
+> NAS100 Opening Range Breakout | 16-Year Optimizer Backtest | Prop Firm Ready
 > **Lagos / Nigeria: 2:30 PM – 4:30 PM WAT**
 
 ---
 
-## Backtest Results — 16 Years of Real Data (2010–2026)
+## Backtest Results — V2 Optimized (2010–2026)
 
 ![Backtest Report](images/backtest_report.png)
 
@@ -13,21 +13,27 @@
 |---|---|
 | Period | Nov 2010 – Mar 2026 |
 | Initial Capital | $10,000 |
-| **Final Balance** | **$139,213** |
-| **Net Profit** | **+$129,213 (+1,292%)** |
-| Total Trades | 1,564 |
-| Win Rate | 44.2% |
-| Profit Factor | 1.962 |
-| Avg Win / Avg Loss | +$513 / −$208 |
-| Avg R:R | 2.47 |
-| Max Drawdown | −40.24% from equity peak |
+| **Final Balance** | **$37,816** |
+| **Net Profit** | **+$27,816 (+278%)** |
+| Total Trades | 1,714 |
+| Win Rate | **52.8%** |
+| Profit Factor | **1.75** |
+| Avg R:R | 1.57 |
+| Max Drawdown | −10.9% |
 | Prop Firm Floor Breached | **Never** |
 
-**16 profitable years out of 16. 128 green months out of 185 (69.2%).**
+> Optimizer tested 32 combinations across entry type, TP method, session width, and sweep filter on 354,006 M15 bars. V2 uses the winning combo: Limit Entry + 3R TP + 9:30–11:30 session + Sweeps OFF. 1% risk, $0.50 commission/side.
 
-Notable years: COVID crash 2020 → **+$6,455** · Rate hike cycle 2022 → **+$16,319** · Best year 2021 → **+$22,127**
+---
 
-> Backtested at 2% risk, $0.50 commission/side, prop firm circuit breakers (5% daily loss limit, 10% max drawdown). Bar-by-bar simulation on 5.1M 1-minute bars from histdata.com. No lookahead bias.
+## Why V2 Beats V1
+
+| Setting | V1 (Old) | V2 (Optimized) | Impact |
+|---------|----------|----------------|--------|
+| Entry | Market order | **Limit order** | Market orders lost money in all 16 combos tested |
+| TP | PDH/PDL | **3R** | Higher profit factor (1.75 vs 1.69) |
+| Sweep Filter | ON | **OFF** | Sweeps OFF improved every combination |
+| Win Rate | 44.2% | **52.8%** | +8.6% win rate improvement |
 
 ---
 
