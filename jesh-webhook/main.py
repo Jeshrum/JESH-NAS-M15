@@ -1,8 +1,9 @@
 """
-JESH NAS M15 — Webhook + Live Signal Server
-- Receives TradingView webhooks (for future Pro use)
-- Runs live signal engine every 15 minutes (no TV Pro needed)
-- Sends all alerts to Telegram DM
+JESH Signal Server — NAS100 + XAUUSD (Doctor Praise)
+- Runs live signal engines every 15 minutes (no TradingView Pro needed)
+- NAS100  : JESH NAS M15 strategy  (9:30 AM–4:55 PM NY)
+- XAUUSD  : DOCTOR PRAISE strategy (10:00 AM–1:00 PM NY)
+- Sends all alerts to Telegram
 """
 
 import os
@@ -13,6 +14,7 @@ import time as time_module
 import requests
 from flask import Flask, request, jsonify
 from live_signal import check_signals
+from dp_live_signal import dp_check_signals
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO,
@@ -31,7 +33,8 @@ def send_telegram(text: str):
     r.raise_for_status()
 
 
-def format_signal(data: dict) -> str:
+def format_nas_signal(data: dict) -> str:
+    """Format inbound TradingView webhook payload for NAS100."""
     alert = data.get("alert", "").upper()
     entry = data.get("entry", "")
     sl    = data.get("sl", "")
@@ -75,7 +78,7 @@ def format_signal(data: dict) -> str:
         return (
             "🔔 <b>JESH Session Open — 9:30 AM NY</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "Opening Range is now set.\n"
+            "Opening Range is now being set.\n"
             "Watch for breakout signal until 11:30 AM NY.\n"
             "⏰ Lagos: 2:30 PM WAT (summer) · 3:30 PM WAT (winter)"
         )
@@ -90,25 +93,27 @@ def format_signal(data: dict) -> str:
     return f"📡 <b>JESH Alert</b>\n{json.dumps(data, indent=2)}"
 
 
-# ── Scheduler — runs check_signals() every 15 minutes ────────────────────────
+# ── Scheduler — runs both signal engines every 15 minutes ────────────────────
 
 def scheduler_loop():
-    log.info("Live signal scheduler started — checking every 15 minutes")
-    # Run once immediately on startup
-    try:
-        check_signals()
-    except Exception as e:
-        log.error("Signal check error: %s", e)
+    log.info("Signal scheduler started — NAS100 + XAUUSD, every 15 minutes")
+
+    # Run both immediately on startup
+    for fn, name in [(check_signals, "NAS"), (dp_check_signals, "DP")]:
+        try:
+            fn()
+        except Exception as e:
+            log.error("[%s] Startup check error: %s", name, e)
 
     while True:
-        time_module.sleep(15 * 60)  # wait 15 minutes
-        try:
-            check_signals()
-        except Exception as e:
-            log.error("Signal check error: %s", e)
+        time_module.sleep(15 * 60)
+        for fn, name in [(check_signals, "NAS"), (dp_check_signals, "DP")]:
+            try:
+                fn()
+            except Exception as e:
+                log.error("[%s] Signal check error: %s", name, e)
 
 
-# Start scheduler in background thread
 scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
 scheduler_thread.start()
 
@@ -117,12 +122,16 @@ scheduler_thread.start()
 
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify({"status": "JESH signal server running ✅",
-                    "mode":   "live polling + webhook ready"}), 200
+    return jsonify({
+        "status":     "JESH signal server running ✅",
+        "strategies": ["NAS100 (JESH M15)", "XAUUSD (Doctor Praise)"],
+        "mode":       "live polling every 15 minutes"
+    }), 200
 
 
 @app.route("/jesh", methods=["POST"])
 def webhook():
+    """TradingView webhook receiver for NAS100 (for future TV Pro use)."""
     if SECRET:
         token = request.headers.get("X-Secret", "") or request.args.get("secret", "")
         if token != SECRET:
@@ -136,10 +145,10 @@ def webhook():
     if not data:
         data = {"alert": request.get_data(as_text=True)}
 
-    log.info("Webhook received: %s", str(data)[:200])
+    log.info("NAS webhook received: %s", str(data)[:200])
 
     try:
-        message = format_signal(data)
+        message = format_nas_signal(data)
         send_telegram(message)
         return jsonify({"status": "sent"}), 200
     except Exception as e:
@@ -149,9 +158,22 @@ def webhook():
 
 @app.route("/check", methods=["GET"])
 def manual_check():
-    """Manually trigger a signal check — for testing."""
+    """Manually trigger both signal checks — for testing."""
+    results = {}
+    for fn, name in [(check_signals, "nas"), (dp_check_signals, "dp")]:
+        try:
+            fn()
+            results[name] = "ok"
+        except Exception as e:
+            results[name] = str(e)
+    return jsonify({"status": "check complete", "results": results}), 200
+
+
+@app.route("/check/dp", methods=["GET"])
+def manual_check_dp():
+    """Manually trigger Doctor Praise signal check only."""
     try:
-        check_signals()
-        return jsonify({"status": "check complete"}), 200
+        dp_check_signals()
+        return jsonify({"status": "Doctor Praise check complete"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
