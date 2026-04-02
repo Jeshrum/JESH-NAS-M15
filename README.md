@@ -10,7 +10,7 @@
 
 > All results on the M15 timeframe. Do not use any other timeframe.
 
-![Backtest Report](images/backtest_report_v2.png)
+![Backtest Report](https://raw.githubusercontent.com/Jeshrum/JESH-NAS-M15/main/images/backtest_report_v2.png)
 
 | Metric | Result |
 |---|---|
